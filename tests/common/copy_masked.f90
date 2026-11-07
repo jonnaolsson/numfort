@@ -59,6 +59,7 @@ subroutine test_copy_2d_1dim ()
     m = 11
     n = 100
     allocate (src(m,n), dst(m,n-1), mask(m))
+    mask(:) = .true.
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
     if (.not. (status == NF_STATUS_INVALID_ARG)) &
@@ -69,6 +70,7 @@ subroutine test_copy_2d_1dim ()
     m = 2
     n = 1
     allocate (src(m,n), dst(m+1,n), mask(n))
+    mask(:) = .true.
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
     if (.not. (status == NF_STATUS_INVALID_ARG)) &
@@ -108,18 +110,30 @@ subroutine test_copy_2d_1dim ()
     m = 0
     n = 1
     allocate (src(m,n), dst(m,n), mask(n))
+    mask(:) = .true.
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
     if (.not. (status == NF_STATUS_OK)) error stop "0-sized row SRC, DST; DIM=2"
+    mask(:) = .false.
+    status = NF_STATUS_UNDEFINED
+    call copy (src, dst, mask, dim=2, status=status)
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "0-sized row SRC, DST; DIM=2 (mask=.false.)"
     deallocate (src, dst, mask)
 
     ! 3. 0-sized cols, dim = 1
     m = 102
     n = 0
     allocate (src(m,n), dst(m,n), mask(m))
+    mask(:) = .true.
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
     if (.not. (status == NF_STATUS_OK)) error stop "0-sized col SRC, DST; DIM=1"
+    mask(:) = .false.
+    status = NF_STATUS_UNDEFINED
+    call copy (src, dst, mask, dim=1, status=status)
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "0-sized col SRC, DST; DIM=1 (mask=.false.)"
     deallocate (src, dst, mask)
 
     ! 4. 0-sized cols, dim = 2

@@ -68,6 +68,8 @@ else
     end if
 end if
 
+if (Nvalid == 0 .or. size (src) == 0) goto 100
+
 if (Nvalid == size(mask) .and. shape_equal (src, dst)) then
     ! Shortcut: if everything is to be included and arrays are of equal size,
     ! copy over data directly.
