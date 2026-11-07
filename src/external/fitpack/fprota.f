@@ -4,7 +4,7 @@ c  ..
 c  ..scalar arguments..
       real*8 cos,sin,a,b
       intent (in) :: cos, sin
-      intent (out) :: a, b
+      intent (in out) :: a, b
 c ..local scalars..
       real*8 stor1,stor2
 c  ..

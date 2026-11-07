@@ -13,7 +13,7 @@
       real*8, intent(in)    :: s
       integer, intent(in)   :: lwrk
       integer, intent(in)   :: kwrk
-      integer, intent(out)  :: n
+      integer, intent(in out) :: n
       real*8, intent(inout) :: t(nest)
       real*8, intent(out)   :: c(nest)
       real*8, intent(out)   :: sq

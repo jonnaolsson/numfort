@@ -5,7 +5,8 @@ c  ..
 c  ..scalar arguments..
       real*8 piv,ww,cos,sin
       intent (in) :: piv
-      intent (out) :: ww, cos, sin
+      intent (in out) :: ww
+      intent (out) :: cos, sin
 c  ..local scalars..
       real*8 dd,one,store
 c  ..function references..

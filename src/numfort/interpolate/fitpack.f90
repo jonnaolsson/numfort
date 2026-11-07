@@ -234,7 +234,7 @@ pure subroutine curfit_real64 (x, y, k, s, knots, coefs, n, &
     if (present(s)) ls = s
     if (present(maxiter)) lmaxiter = maxiter
 
-    call curfit_get_wrk_size (m, k, nwrk, nest)
+    call curfit_get_wrk_size (m, lk, nwrk, nest)
 
     if (size(knots) < nest .or. size(coefs) < nest) then
         if (present(msg)) msg = "knots and coefs arrays must be of length nest"
@@ -257,7 +257,7 @@ pure subroutine curfit_real64 (x, y, k, s, knots, coefs, n, &
 
     ! Erase values in knots / coefs arrays to eliminate any junk that might
     ! be at those locations.
-    if (liopt /= 1) then
+    if (liopt == 0) then
         knots = 0.0_PREC
         coefs = 0.0_PREC
     end if

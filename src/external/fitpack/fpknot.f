@@ -17,7 +17,7 @@ c  ..array arguments..
       real*8 x(m),t(nest),fpint(nest)
       integer nrdata(nest)
       intent (in) :: x, m, nest, istart
-      intent (out) :: t, n, fpint, nrdata, nrint
+      intent (in out) :: t, n, fpint, nrdata, nrint
 c  ..local scalars..
       real*8 an,am,fpmax
       integer ihalf,j,jbegin,jj,jk,jpoint,k,maxbeg,maxpt,

@@ -224,8 +224,8 @@ c  ..array arguments..
       real*8, intent(in)        :: xe
       real*8, intent(in)        :: s
       integer, intent(in)       :: lwrk
-      integer, intent(out)      :: n
-      real*8, intent(out)       :: t(nest)
+      integer, intent(in out)   :: n
+      real*8, intent(in out)    :: t(nest)
       real*8, intent(out)       :: c(nest)
       real*8, intent(out)       :: fp
       real*8, intent(in out)    :: wrk(lwrk)
