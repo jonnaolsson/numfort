@@ -2103,7 +2103,7 @@ end subroutine
 
 
 
-subroutine enet_post_estim (res, X, y, rsq, status)
+subroutine enet_post_estim_impl (res, X, y, rsq, status)
     type (enet_result), intent(in) :: res
     real (PREC), intent(in), dimension(:,:), contiguous :: X
     real (PREC), intent(in), dimension(:), contiguous :: y

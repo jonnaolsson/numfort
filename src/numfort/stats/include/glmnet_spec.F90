@@ -112,11 +112,11 @@ interface enet_predict
 end interface
 
 interface post_estim
-    procedure enet_post_estim
+    procedure enet_post_estim_impl
 end interface
 
 interface enet_post_estim
-    procedure enet_post_estim
+    procedure enet_post_estim_impl
 end interface
 
 interface create_alpha_grid
