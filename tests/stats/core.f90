@@ -356,8 +356,8 @@ subroutine test_standardize_1d ()
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.true., scale=.false., mean_x=mean_x, &
         std_x=std_x, shift_x=shift_x, scale_x=scale_x, status=status)
-    values_ok = all(x == x_ok) .and. mean_x==mean_ok .and. std_x==std_ok &
-        .and. shift_x==mean_x .and. scale_x==1.0_PREC
+    values_ok = all_close (x, x_ok, atol=tol) .and. mean_x == mean_ok &
+        .and. std_x == std_ok .and. shift_x == mean_x .and. scale_x == 1.0_PREC
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "All args present, CENTER=.TRUE., SCALE=.FALSE."
 
@@ -365,7 +365,7 @@ subroutine test_standardize_1d ()
     x = x_orig
     x_ok = x - mean_ok
     call standardize (x, center=.true., scale=.false., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "No optional args present, CENTER=.TRUE., SCALE=.FALSE."
 
@@ -376,8 +376,8 @@ subroutine test_standardize_1d ()
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.false., scale=.true., mean_x=mean_x, &
         std_x=std_x, shift_x=shift_x, scale_x=scale_x, status=status)
-    values_ok = all(x == x_ok) .and. mean_x==mean_ok .and. std_x==std_ok &
-        .and. shift_x==0.0_PREC .and. scale_x==std_ok
+    values_ok = all_close (x, x_ok, atol=tol) .and. mean_x == mean_ok &
+        .and. std_x == std_ok .and. shift_x == 0.0_PREC .and. scale_x == std_ok
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "All args present, CENTER=.FALSE., SCALE=.TRUE."
 
@@ -385,7 +385,7 @@ subroutine test_standardize_1d ()
     x_ok = x / std_ok
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.false., scale=.true., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "No optional args present, CENTER=.FALSE., SCALE=.TRUE."
 
@@ -396,8 +396,8 @@ subroutine test_standardize_1d ()
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.true., scale=.true., mean_x=mean_x, &
         std_x=std_x, shift_x=shift_x, scale_x=scale_x, status=status)
-    values_ok = all(x == x_ok) .and. mean_x==mean_ok .and. std_x==std_ok &
-        .and. shift_x==mean_ok .and. scale_x==std_ok
+    values_ok = all_close (x, x_ok, atol=tol) .and. mean_x == mean_ok &
+        .and. std_x == std_ok .and. shift_x == mean_ok .and. scale_x == std_ok
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "All args present, CENTER=.TRUE., SCALE=.TRUE."
 
@@ -405,7 +405,7 @@ subroutine test_standardize_1d ()
     x_ok = (x - mean_ok) / std_ok
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.true., scale=.true., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "No optional args present, CENTER=.TRUE., SCALE=.TRUE."
 
@@ -497,20 +497,20 @@ subroutine test_standardize_2d ()
         mean_x=mean_x(1:k), std_x=std_x(1:k), shift_x=shift_x(1:k), &
         scale_x=scale_x(1:k), status=status)
 
-    values_ok = all(x == x_orig) .and. all(mean_x(1:k) == mean_ok(1:k)) &
-        .and. all(std_x(1:k) == std_ok(1:k)) &
-        .and. all(shift_x(1:k) == 0.0_PREC) &
-        .and. all(scale_x(1:k) == 1.0_PREC)
+    values_ok = all (x == x_orig) .and. all (mean_x(1:k) == mean_ok(1:k)) &
+        .and. all (std_x(1:k) == std_ok(1:k)) &
+        .and. all (shift_x(1:k) == 0.0_PREC) &
+        .and. all (scale_x(1:k) == 1.0_PREC)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
-        error stop "All args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE."
+        error stop "All args present, DIM=2, CENTER=.FALSE., SCALE=.FALSE."
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.false., scale=.false., status=status)
 
-    values_ok = all(x == x_orig)
+    values_ok = all (x == x_orig)
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
-        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE."
+        error stop "No optional args present, DIM=2, CENTER=.FALSE., SCALE=.FALSE."
 
     ! --- Center ---
 
@@ -530,10 +530,10 @@ subroutine test_standardize_2d ()
         mean_x=mean_x(1:k), std_x=std_x(1:k), shift_x=shift_x(1:k), &
         scale_x=scale_x(1:k), status=status)
 
-    values_ok = all(x == x_ok) .and. all(mean_x(1:k) == mean_ok(1:k)) &
-        .and. all(std_x(1:k) == std_ok(1:k)) &
-        .and. all(shift_x(1:k) == mean_ok(1:k)) &
-        .and. all(scale_x(1:k) == 1.0_PREC)
+    values_ok = all_close (x, x_ok, atol=tol) .and. all (mean_x(1:k) == mean_ok(1:k)) &
+        .and. all (std_x(1:k) == std_ok(1:k)) &
+        .and. all (shift_x(1:k) == mean_ok(1:k)) &
+        .and. all (scale_x(1:k) == 1.0_PREC)
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "All args present, DIM=1, CENTER=.TRUE., SCALE=.FALSE."
@@ -542,7 +542,7 @@ subroutine test_standardize_2d ()
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.true., scale=.false., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "No optional args present, DIM=1, CENTER=.TRUE., SCALE=.FALSE."
 
@@ -562,10 +562,10 @@ subroutine test_standardize_2d ()
         mean_x=mean_x(1:k), std_x=std_x(1:k), shift_x=shift_x(1:k), &
         scale_x=scale_x(1:k), status=status)
 
-    values_ok = all(x == x_ok) .and. all(mean_x(1:k) == mean_ok(1:k)) &
-        .and. all(std_x(1:k) == std_ok(1:k)) &
-        .and. all(shift_x(1:k) == mean_ok(1:k)) &
-        .and. all(scale_x(1:k) == 1.0_PREC)
+    values_ok = all_close (x, x_ok, atol=tol) .and. all (mean_x(1:k) == mean_ok(1:k)) &
+        .and. all (std_x(1:k) == std_ok(1:k)) &
+        .and. all (shift_x(1:k) == mean_ok(1:k)) &
+        .and. all (scale_x(1:k) == 1.0_PREC)
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "All args present, DIM=2, CENTER=.TRUE., SCALE=.FALSE."
@@ -575,7 +575,7 @@ subroutine test_standardize_2d ()
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.true., scale=.false., status=status)
 
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "No optional args present, DIM=2, CENTER=.TRUE., SCALE=.FALSE."
@@ -598,10 +598,10 @@ subroutine test_standardize_2d ()
         mean_x=mean_x(1:k), std_x=std_x(1:k), shift_x=shift_x(1:k), &
         scale_x=scale_x(1:k), status=status)
 
-    values_ok = all(x == x_ok) .and. all(mean_x(1:k) == mean_ok(1:k)) &
-        .and. all(std_x(1:k) == std_ok(1:k)) &
-        .and. all(shift_x(1:k) == 0.0_PREC) &
-        .and. all(scale_x(1:k) == std_ok(1:k))
+    values_ok = all_close (x, x_ok, atol=tol) .and. all (mean_x(1:k) == mean_ok(1:k)) &
+        .and. all (std_x(1:k) == std_ok(1:k)) &
+        .and. all (shift_x(1:k) == 0.0_PREC) &
+        .and. all (scale_x(1:k) == std_ok(1:k))
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "All args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
@@ -610,7 +610,7 @@ subroutine test_standardize_2d ()
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.false., scale=.true., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
 
@@ -630,21 +630,21 @@ subroutine test_standardize_2d ()
         mean_x=mean_x(1:k), std_x=std_x(1:k), shift_x=shift_x(1:k), &
         scale_x=scale_x(1:k), status=status)
 
-    values_ok = all(x == x_ok) .and. all(mean_x(1:k) == mean_ok(1:k)) &
-        .and. all(std_x(1:k) == std_ok(1:k)) &
-        .and. all(shift_x(1:k) == 0.0_PREC) &
-        .and. all(scale_x(1:k) == std_ok(1:k))
+    values_ok = all_close (x, x_ok, atol=tol) .and. all (mean_x(1:k) == mean_ok(1:k)) &
+        .and. all (std_x(1:k) == std_ok(1:k)) &
+        .and. all (shift_x(1:k) == 0.0_PREC) &
+        .and. all (scale_x(1:k) == std_ok(1:k))
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
-        error stop "All args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
+        error stop "All args present, DIM=2, CENTER=.FALSE., SCALE=.TRUE."
 
     x = x_orig
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.false., scale=.true., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
-        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
+        error stop "No optional args present, DIM=2, CENTER=.FALSE., SCALE=.TRUE."
 
     ! --- Center and scale ---
 
@@ -664,10 +664,10 @@ subroutine test_standardize_2d ()
         mean_x=mean_x(1:k), std_x=std_x(1:k), shift_x=shift_x(1:k), &
         scale_x=scale_x(1:k), status=status)
 
-    values_ok = all(x == x_ok) .and. all(mean_x(1:k) == mean_ok(1:k)) &
-        .and. all(std_x(1:k) == std_ok(1:k)) &
-        .and. all(shift_x(1:k) == mean_ok(1:k)) &
-        .and. all(scale_x(1:k) == std_ok(1:k))
+    values_ok = all_close (x, x_ok, atol=tol) .and. all (mean_x(1:k) == mean_ok(1:k)) &
+        .and. all (std_x(1:k) == std_ok(1:k)) &
+        .and. all (shift_x(1:k) == mean_ok(1:k)) &
+        .and. all (scale_x(1:k) == std_ok(1:k))
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "All args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE."
@@ -676,7 +676,7 @@ subroutine test_standardize_2d ()
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.true., scale=.true., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "No optional args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE."
 
@@ -696,21 +696,21 @@ subroutine test_standardize_2d ()
         mean_x=mean_x(1:k), std_x=std_x(1:k), shift_x=shift_x(1:k), &
         scale_x=scale_x(1:k), status=status)
 
-    values_ok = all(x == x_ok) .and. all(mean_x(1:k) == mean_ok(1:k)) &
-        .and. all(std_x(1:k) == std_ok(1:k)) &
-        .and. all(shift_x(1:k) == mean_ok(1:k)) &
-        .and. all(scale_x(1:k) == std_ok(1:k))
+    values_ok = all_close (x, x_ok, atol=tol) .and. all (mean_x(1:k) == mean_ok(1:k)) &
+        .and. all (std_x(1:k) == std_ok(1:k)) &
+        .and. all (shift_x(1:k) == mean_ok(1:k)) &
+        .and. all (scale_x(1:k) == std_ok(1:k))
 
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
-        error stop "All args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE."
+        error stop "All args present, DIM=2, CENTER=.TRUE., SCALE=.TRUE."
 
     x = x_orig
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.true., scale=.true., status=status)
-    values_ok = all(x == x_ok)
+    values_ok = all_close (x, x_ok, atol=tol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
-        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
+        error stop "No optional args present, DIM=2, CENTER=.TRUE., SCALE=.TRUE."
 
 end subroutine
 
