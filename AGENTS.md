@@ -20,6 +20,14 @@
 - Preserve `build-ci` logs and matrix summaries. Check CTest results and
   `Testing/Temporary/LastTest.log`; executable exit status determines failure.
 
+## Git
+
+- Do not create commits without explicit user approval.
+- Format commit subjects as `<prefix>: <summary>`.
+- Use the modified numfort component as `<prefix>` (e.g., `linalg`, `optimize`),
+  or an area like `cmake`, `tests`, `ci`, or `docs` if not component-specific.
+- Include a bullet list of brief additional details in the commit body.
+
 ## Language and structure
 
 - Keep explanations in Markdown and code comments brief and easy to read.
