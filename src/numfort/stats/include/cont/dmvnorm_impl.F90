@@ -284,10 +284,10 @@ subroutine __APPEND(dmvnorm_rvs_2d,__PREC) (obj, x, mean, cov, dim, &
         end do
 
         ! Each column contains one realized variable, compute
-        !   X' = Z' * V'
-        ! where Z is the array of iid. standard-normal variables.
-        call BLAS_GEMM (transa='T', transb='T', m=nobs, n=nvars, k=nvars, &
-            alpha=1.0_PREC, a=rwork2d, lda=nvars, b=vt, ldb=nvars, &
+        !   X = Z * V'
+        ! where Z is the array of iid standard-normal variables.
+        call BLAS_GEMM (transa="N", transb="T", m=nobs, n=nvars, k=nvars, &
+            alpha=1.0_PREC, a=rwork2d, lda=nobs, b=vt, ldb=nvars, &
             beta=1.0_PREC, c=x, ldc=nobs)
     else
         ! Populate X with mean values first

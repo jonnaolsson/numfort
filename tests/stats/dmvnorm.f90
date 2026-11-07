@@ -227,7 +227,7 @@ subroutine test_rvs ()
     vcv_hat(:,:) = 2.0 * (vcv_hat - 0.5)
     call BLAS_GEMM (transa="N", transb="T", m=nvars, n=nvars, k=nvars, &
         alpha=1.0_PREC, a=vcv_hat, lda=nvars, b=vcv_hat, ldb=nvars, &
-        beta=1.0_PREC, c=vcv, ldc=nvars)
+        beta=0.0_PREC, c=vcv, ldc=nvars)
     ! Diagnostics: compute implied corr. matrix
     do j = 1, nvars
         do i = 1, nvars
