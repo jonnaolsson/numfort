@@ -1030,7 +1030,8 @@ recursive subroutine eval_and_check (fobj, fcon, m, x, fx, c, g, a, &
         end if
     end if
 
-    if (status /= NF_STATUS_INVALID_STATE) then
+    ! Unscaled evaluations may omit FX_SCALE; do not pass it to a required dummy.
+    if (autoscale .and. status /= NF_STATUS_INVALID_STATE) then
         call apply_scaling (autoscale, fx_scale, x_scale, fx, g=g, a=a)
     end if
 
