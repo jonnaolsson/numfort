@@ -1,11 +1,5 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(${COMPONENT_NAME}_FILES
-    concon.f90
-    curfit.f90
-    linear.f90
-    pchip.f90
-    search.f90
-    PARENT_SCOPE
-)
+numfort_add_test(interpolate_concon concon.f90)
+numfort_add_test(interpolate_curfit curfit.f90)
+numfort_add_test(interpolate_linear linear.f90)
+numfort_add_test(interpolate_pchip pchip.f90)
+numfort_add_test(interpolate_search search.f90)

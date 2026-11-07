@@ -1,10 +1,8 @@
-# Sample CMake file illustrating how to reference the NUMFORT library
+cmake_minimum_required(VERSION 4.1)
 
-cmake_minimum_required(VERSION 3.12)
+project(numfort_client LANGUAGES Fortran)
 
-project(numfort_client Fortran)
-
-find_package(numfort REQUIRED)
+find_package(numfort CONFIG REQUIRED)
 
 add_executable(client client.f90)
-target_link_libraries(client numfort::numfort)
+target_link_libraries(client PRIVATE numfort::numfort)

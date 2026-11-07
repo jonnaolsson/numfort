@@ -1,14 +1,8 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(${COMPONENT_NAME}_FILES
-    copy.f90
-    delete.f90
-    indexing.f90
-    insert.f90
-    kron.f90
-    setops.f90
-    sort.F90
-    vander.f90
-    PARENT_SCOPE
-)
+numfort_add_test(arrays_copy copy.f90)
+numfort_add_test(arrays_delete delete.f90)
+numfort_add_test(arrays_indexing indexing.f90)
+numfort_add_test(arrays_insert insert.f90)
+numfort_add_test(arrays_kron kron.f90)
+numfort_add_test(arrays_setops setops.f90)
+numfort_add_test(arrays_sort sort.F90)
+numfort_add_test(arrays_vander vander.f90)

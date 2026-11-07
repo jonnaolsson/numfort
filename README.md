@@ -36,10 +36,10 @@ models in Fortran easier.
 
 ### Linux
 
-_numfort_ is built using [CMake](https://cmake.org/).
-The library itself does not have any compile-time dependencies, but 
-requires BLAS and LAPACK libraries to be present when linking
-any client application using _numfort_.
+- Requires [CMake](https://cmake.org/) 4.1 or later.
+- Static and shared builds require BLAS/LAPACK with 32-bit integer interfaces
+  (LP64). Link dependencies propagate through `numfort::numfort`.
+- Prefers Intel MKL, with fallback to CMake's LAPACK discovery.
 
 Set the GCC major version in your shell. On Fedora this sets the build path;
 the default compiler must be the matching version.
@@ -91,35 +91,37 @@ For GCC 16 on Fedora, the CMake package is installed under
 #### Using a specific compiler ####
 
 You may want to specify an alternative Fortran compiler or compile flags (`FFLAGS`).
-For example, to build using Intel's Fortran compiler `ifx` or the now-deprecated `ifort` and optimize the
+For example, to build using Intel's Fortran compiler `ifx` and optimize the
 code for the host machine architecture, you could run:
 
 ```sh
 cmake -S "$HOME/repos/numfort" -B "$HOME/build/intel/numfort" \
-    -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_Fortran_FLAGS=-xHost \
+    -DCMAKE_Fortran_COMPILER=ifx -DCMAKE_Fortran_FLAGS=-xHost \
     -DCMAKE_INSTALL_PREFIX=/path/to/install
 ```
-_numfort_ was tested to compile with the following compilers:
+The current code is tested with:
 
--   GNU `gfortran` 11.x - 16.x
--   Intel `ifort` 2021 and `ifx` 2024
+- GNU `gfortran` 16.2.1
+- Intel `ifx` 2026.2.0
 
 ***
 ### Advanced build instructions
 
-To build the unit tests or example files, several libraries are needed at
-compile time:
+The optional programs use the dependencies below:
+
 1.  The _fcore_ library available [here](https://github.com/richardfoltyn/fortran-corelib).
-    The latter is built as a CMake project, so we use the 
-    `CMAKE_PREFIX_PATH` variable to specify where CMake should look for it.
+    This dependency is required only for unit tests. Set `CMAKE_PREFIX_PATH` to
+    its installation prefix, or provide an existing `fcore::fcore` target in a
+    parent project.
 
 1.  BLAS and LAPACK libraries: _numfort_ works either with Intel MKL
     or some other implementation such as OpenBLAS.
     1.  For Intel MKL, the variable `MKL_ROOT` should point to the
         desired MKL installation directory.
         Optionally, `MKL_FORTRAN95_ROOT` can be specified if the Fortran 95
-        wrappers for BLAS and LAPACK are available (this is only required
-        for gfortran, MKL itself ships the required libraries for `ifort` and `ifx`).
+        wrappers for BLAS are available. Tests and examples use MKL's BLAS95
+        wrappers when available; otherwise numfort builds its own wrappers.
+        LAPACK95 is not required.
         
         On Fedora, after setting `GCC_VERSION` as above and installing fcore
         and MKL95, set the MKL version in your shell:
@@ -143,11 +145,11 @@ compile time:
             -DCMAKE_PREFIX_PATH="$HOME/.local" \
             -DMKL_ROOT="/opt/intel/oneapi/mkl/$MKL_VERSION" \
             -DMKL_FORTRAN95_ROOT="$HOME/.local/share/mkl/$MKL_VERSION/gnu/$GCC_VERSION" \
-            -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON
+            -DNUMFORT_BUILD_TESTS=ON -DNUMFORT_BUILD_EXAMPLES=ON
         ```
                 
     2.  If another BLAS/LAPACK implementation should be used, set
-        `USE_MKL=OFF` and _numfort_ will use whichever library is found
+        `NUMFORT_USE_MKL=OFF` and _numfort_ will use whichever library is found
         by CMake.
          
         On Fedora, configure with:
@@ -157,20 +159,55 @@ compile time:
             -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_C_COMPILER=gcc \
             -DCMAKE_INSTALL_PREFIX="$HOME/.local" \
             -DCMAKE_PREFIX_PATH="$HOME/.local" \
-            -DUSE_MKL=OFF \
-            -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON
+            -DNUMFORT_USE_MKL=OFF \
+            -DNUMFORT_BUILD_TESTS=ON -DNUMFORT_BUILD_EXAMPLES=ON
         ```
+
+### Build options
+
+- Standalone builds default to Release and a static library.
+- Project options use the `NUMFORT_` prefix:
+  - `NUMFORT_BUILD_TESTS=OFF`, `NUMFORT_BUILD_EXAMPLES=OFF`: optional programs;
+    tests require fcore and run with `ctest --test-dir <build-dir>`.
+  - `NUMFORT_USE_MKL=ON`, `NUMFORT_USE_OPENMP=ON`: dependency selection;
+    OpenMP-specific programs follow the OpenMP option.
+  - `NUMFORT_BUILD_BLAS95=OFF`: build/install wrappers; enabled automatically
+    when tests/examples need them and MKL BLAS95 is unavailable.
+  - `NUMFORT_USE_LTO=OFF`, `NUMFORT_OPT_REPORT=OFF`: IPO and GNU/Intel
+    optimization reports (Release/RelWithDebInfo). Static Intel IPO builds pass
+    the required linker option to consumers.
+  - `NUMFORT_INSTALL_DIR_NAME`: override the version/compiler subdirectory.
+- `BUILD_SHARED_LIBS=ON` selects a shared library; tests/examples link that
+  library.
+- Multi-config generators use `--config` for builds and `-C` for CTest. Build
+  configurations sequentially, or use separate build trees.
+- Standard `CMAKE_INSTALL_{LIB,INCLUDE,BIN}DIR` overrides are supported. Use
+  relative paths for relocation; DLLs go below bindir, libraries/packages below libdir.
 
 ***
 ## Usage
 
-Add the following to a CMake-based project to use the _numfort_ library:
+- Enable Fortran, then find an installed package and link its target:
 
 ```cmake
-find_package(numfort REQUIRED)
-
+find_package(numfort 0.1 CONFIG REQUIRED)
 target_link_libraries(<target> PRIVATE numfort::numfort)
 ```
+
+- Set `CMAKE_PREFIX_PATH` to the install prefix, or `numfort_DIR` to its
+  compiler-specific `cmake` directory. Set `MKL_ROOT` if MKL needs a search hint.
+- Installed packages require the same Fortran compiler family and major version;
+  version requests accept `0.1.x`. Use `EXACT` for an exact version.
+- For source-tree integration, use the same target:
+
+```cmake
+add_subdirectory(path/to/numfort numfort-build)
+target_link_libraries(<target> PRIVATE numfort::numfort)
+```
+
+- Module paths and link dependencies propagate automatically; compiler flags,
+  output/module directories, and the default configuration stay local to numfort.
+- Parents running numfort's optional tests must call `enable_testing()`.
 
 ***
 ## License

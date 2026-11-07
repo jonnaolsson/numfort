@@ -1,7 +1,4 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(SOURCE_FILES
+target_sources(numfort PRIVATE
     alloc.f90
     cond_alloc.F90
     copy_alloc.F90
@@ -23,5 +20,3 @@ set(SOURCE_FILES
     workspace_real32.F90
     workspace_real64.F90
 )
-
-add_library(${COMPONENT_NAME} OBJECT ${SOURCE_FILES})

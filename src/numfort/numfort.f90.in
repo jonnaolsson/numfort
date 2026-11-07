@@ -6,6 +6,6 @@ module numfort
     integer, parameter, dimension(*) :: NUMFORT_VERSION_COMPONENTS = &
         [${PROJECT_VERSION_MAJOR}, ${PROJECT_VERSION_MINOR}, ${PROJECT_VERSION_PATCH}]
 
-    character (*), parameter :: NUMFORT_VERSION = '${NUMFORT_VERSION}'
+    character (*), parameter :: NUMFORT_VERSION = '${PROJECT_VERSION}'
 
 end module

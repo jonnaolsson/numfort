@@ -1,10 +1,4 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(${COMPONENT_NAME}_FILES
-    combinatorics.f90
-    cephes_stats.f90
-    libcwrapper.f90
-    logexp.f90
-    PARENT_SCOPE
-)
+numfort_add_test(core_combinatorics combinatorics.f90)
+numfort_add_test(core_cephes_stats cephes_stats.f90)
+numfort_add_test(core_libcwrapper libcwrapper.f90)
+numfort_add_test(core_logexp logexp.f90)

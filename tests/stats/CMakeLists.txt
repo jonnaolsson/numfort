@@ -1,17 +1,11 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(${COMPONENT_NAME}_FILES
-    random_integer.f90
-    core.f90
-    dfrechet.f90
-    dlogistic.f90
-    dlognorm.F90
-    dmvnorm.f90
-    dnorm.f90
-    ineq.f90
-    lm.f90
-    markov.f90
-    glmnet.f90
-    PARENT_SCOPE
-)
+numfort_add_test(stats_random_integer random_integer.f90)
+numfort_add_test(stats_core core.f90)
+numfort_add_test(stats_dfrechet dfrechet.f90)
+numfort_add_test(stats_dlogistic dlogistic.f90)
+numfort_add_test(stats_dlognorm dlognorm.F90)
+numfort_add_test(stats_dmvnorm dmvnorm.f90)
+numfort_add_test(stats_dnorm dnorm.f90)
+numfort_add_test(stats_ineq ineq.f90)
+numfort_add_test(stats_lm lm.f90)
+numfort_add_test(stats_markov markov.f90)
+numfort_add_test(stats_glmnet glmnet.f90)

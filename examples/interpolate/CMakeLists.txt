@@ -1,8 +1,3 @@
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(${COMPONENT_NAME}_FILES
-    concon.f90
-    curfit.f90
-    splder.f90
-    PARENT_SCOPE
-)
+numfort_add_example(interpolate_concon concon.f90)
+numfort_add_example(interpolate_curfit curfit.f90)
+numfort_add_example(interpolate_splder splder.f90)

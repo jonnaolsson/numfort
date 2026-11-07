@@ -1,45 +1,76 @@
-
 @PACKAGE_INIT@
 
-set(PACKAGE_VERSION @PROJECT_VERSION@)
-set(PACKAGE_NAMESPACE @NUMFORT_INSTALL_NAMESPACE@)
-set(PACKAGE_NAME @NUMFORT_LIBRARY_NAME@)
-
-set_and_check(PACKAGE_CONFIG_PATH "@PACKAGE_NUMFORT_INSTALL_CONFIG_PATH@")
-
-set(PACKAGE_TARGET ${PACKAGE_NAMESPACE}::${PACKAGE_NAME})
-
-if(NOT TARGET ${PACKAGE_TARGET})
-    include("${PACKAGE_CONFIG_PATH}/${PACKAGE_NAME}Targets.cmake")
+set(numfort_VERSION "@PROJECT_VERSION@")
+if(NOT CMAKE_Fortran_COMPILER_LOADED)
+    set(numfort_FOUND FALSE)
+    set(numfort_NOT_FOUND_MESSAGE "Enable the Fortran language before finding numfort.")
+    return()
 endif()
 
-# Do this only for compatibility if downstream uses the
-# @NUMFORT_LIBRARY_NAME@_INCLUDE_DIRS variable. This variable is not needed if
-# the upstream include directories are added via
-# target_include_directories(target INTERFACE
-#   @NUMFORT_INSTALL_NAMESPACE@::@NUMFORT_LIBRARY_NAME@)
-# statement.
-get_target_property(_include ${PACKAGE_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
-set(${PACKAGE_NAME}_INCLUDE_DIRS "${_include}" 
-    CACHE STRING "${PACKAGE_NAME} include directory"
-    FORCE
-)
+string(REGEX MATCH "^[0-9]+" _numfort_compiler_major "${CMAKE_Fortran_COMPILER_VERSION}")
+if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL "@CMAKE_Fortran_COMPILER_ID@"
+        OR NOT _numfort_compiler_major STREQUAL "@NUMFORT_COMPILER_MAJOR@")
+    set(numfort_FOUND FALSE)
+    set(numfort_NOT_FOUND_MESSAGE
+        "numfort was built with @CMAKE_Fortran_COMPILER_ID@ @CMAKE_Fortran_COMPILER_VERSION@; a matching compiler family and major version are required.")
+    unset(_numfort_compiler_major)
+    return()
+endif()
+unset(_numfort_compiler_major)
 
-if(NOT ${PACKAGE_NAME}_FOUND)
-    # Try compiling to see whether the library and the target architecture match
-    # Note: _result is set to TRUE/FALSE
-    try_compile(_result
-        "${CMAKE_CURRENT_BINARY_DIR}"
-        "${CMAKE_CURRENT_LIST_DIR}/compiler_test.f90"
-        LINK_LIBRARIES ${PACKAGE_TARGET}
-    )
-
-    set(${PACKAGE_NAME}_FOUND ${_result} CACHE BOOL "" FORCE)
-
+include(CMakeFindDependencyMacro)
+if("@NUMFORT_BLAS_PROVIDER@" STREQUAL "MKL")
+    # Keep dependency finder paths and variables out of the consuming project.
+    function(_numfort_find_installed_mkl)
+        list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/modules")
+        find_package(NumfortMKL QUIET MODULE)
+        set(_numfort_mkl_found ${NumfortMKL_FOUND} PARENT_SCOPE)
+    endfunction()
+    _numfort_find_installed_mkl()
+    if(NOT _numfort_mkl_found)
+        set(numfort_FOUND FALSE)
+        set(numfort_NOT_FOUND_MESSAGE "The installed numfort requires Intel MKL (LP64, sequential). Set MKL_ROOT.")
+        return()
+    endif()
+    unset(_numfort_mkl_found)
+else()
+    # Scope the required integer ABI without replacing the caller's BLA settings.
+    function(_numfort_find_installed_lapack)
+        set(BLA_SIZEOF_INTEGER 4)
+        find_dependency(LAPACK)
+        set(_numfort_lapack_found TRUE PARENT_SCOPE)
+    endfunction()
+    set(_numfort_lapack_found FALSE)
+    _numfort_find_installed_lapack()
+    if(NOT _numfort_lapack_found)
+        set(numfort_FOUND FALSE)
+        set(numfort_NOT_FOUND_MESSAGE "The installed numfort requires a 32-bit integer BLAS/LAPACK library.")
+        return()
+    endif()
+    unset(_numfort_lapack_found)
+endif()
+if(@NUMFORT_USE_OPENMP@)
+    find_dependency(OpenMP COMPONENTS Fortran)
 endif()
 
-if(${PACKAGE_NAME}_FOUND AND NOT ${PACKAGE_NAME}_FIND_QUIETLY)
-    string(TOUPPER "${PACKAGE_NAME}" _name)
-    message(STATUS "Found ${_name} ${PACKAGE_VERSION}: ${${PACKAGE_NAME}_INCLUDE_DIRS}")
+if(NOT TARGET numfort::numfort)
+    include("${CMAKE_CURRENT_LIST_DIR}/numfortTargets.cmake")
 endif()
-
+function(_numfort_check_compiler)
+    # A toolchain may default try_compile to STATIC_LIBRARY; this check must link.
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+    try_compile(_numfort_compiler_compatible
+        SOURCES "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/compiler_test.f90"
+        LINK_LIBRARIES numfort::numfort
+        NO_CACHE
+        LOG_DESCRIPTION "Check installed numfort Fortran modules and link compatibility"
+        OUTPUT_VARIABLE _numfort_compiler_output)
+    if(NOT _numfort_compiler_compatible)
+        set(numfort_FOUND FALSE PARENT_SCOPE)
+        set(numfort_NOT_FOUND_MESSAGE
+            "The installed numfort failed its compiler compatibility check:\n${_numfort_compiler_output}"
+            PARENT_SCOPE)
+    endif()
+endfunction()
+_numfort_check_compiler()
+check_required_components(numfort)

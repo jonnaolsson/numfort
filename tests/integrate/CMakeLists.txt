@@ -1,13 +1,2 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(${COMPONENT_NAME}_FILES
-    basic.f90
-    quadpack.f90
-    PARENT_SCOPE
-)
-
-set(${COMPONENT_NAME}_SHARED_FILES
-    funcs.f90
-    PARENT_SCOPE
-)
+numfort_add_test(integrate_basic basic.f90 funcs.f90)
+numfort_add_test(integrate_quadpack quadpack.f90 funcs.f90)

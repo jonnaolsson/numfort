@@ -1,7 +1,4 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(SOURCE_FILES
+target_sources(numfort PRIVATE
     hermite_e.F90
     polynomial.f90
     poly_create.F90
@@ -13,6 +10,3 @@ set(SOURCE_FILES
     ppoly.F90
     ppoly_tensor.F90
 )
-
-add_library(${COMPONENT_NAME} OBJECT ${SOURCE_FILES})
-add_dependencies(${COMPONENT_NAME} arrays common core linalg)

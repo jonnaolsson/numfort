@@ -1,7 +1,4 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(SOURCE_FILES
+target_sources(numfort PRIVATE
     arrays.f90
     arrays_sort.F90
     arrays_index.F90
@@ -17,9 +14,3 @@ set(SOURCE_FILES
     arrays_norms.F90
     arrays_setops.F90
 )
-
-add_library(${COMPONENT_NAME} OBJECT ${SOURCE_FILES})
-add_dependencies(${COMPONENT_NAME} core common)
-
-# External dependencies
-target_link_libraries(${COMPONENT_NAME} PRIVATE orderpack)

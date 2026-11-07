@@ -1,34 +1,26 @@
+# Keep legacy compiler options and module files separate from numfort's sources.
+function(numfort_add_external name)
+    set(target numfort_external_${name})
+    add_library(${target} OBJECT ${ARGN})
+    get_target_property(library_type numfort TYPE)
+    if(library_type STREQUAL "SHARED_LIBRARY")
+        set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
+    set_target_properties(${target} PROPERTIES
+        Fortran_MODULE_DIRECTORY "${NUMFORT_EXTERNAL_MODULE_DIRECTORY}")
+    target_include_directories(${target} PRIVATE
+        "${NUMFORT_EXTERNAL_MODULE_DIRECTORY}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    if(CMAKE_GENERATOR MATCHES "^Visual Studio")
+        target_include_directories(${target} PRIVATE
+            "${NUMFORT_EXTERNAL_MODULE_DIRECTORY}/$<CONFIG>")
+    endif()
+    numfort_configure_compiler_options(${target} legacy)
+    # Object libraries contribute objects and ordering without install exports.
+    target_link_libraries(numfort PRIVATE "$<BUILD_INTERFACE:${target}>")
+endfunction()
 
-################################################################################
-# Add compiler flags specific to external projects
-
-unset(EXTERNAL_FFLAGS)
-unset(EXTERNAL_FFLAGS_DEBUG)
-
-if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" OR MINGW)
-    set(GNU_WARN -Wall -Wno-uninitialized -Wno-conversion -Wno-unused -Wno-tabs 
-        -Wno-unused-dummy-argument)
-    set(EXTERNAL_FFLAGS ${GNU_WARN} -std=legacy)
-elseif (CMAKE_Fortran_COMPILER_ID MATCHES "Intel(LLVM)?")
-    if (WIN32)
-        set(EXTERNAL_FFLAGS /warn:all,nounused,nousage)
-    else ()
-        set(EXTERNAL_FFLAGS -warn all,nounused,nousage ${OpenMP_Fortran_FLAGS})
-    endif (WIN32)
-endif ()
-
-
-################################################################################
-
-# add_subdirectory(ARPACK)
-add_subdirectory(fitpack)
-add_subdirectory(lbfgsb_bmnz)
-add_subdirectory(simplex_csiro)
-add_subdirectory(minpack)
-add_subdirectory(newuoa2)
-add_subdirectory(orderpack)
-add_subdirectory(quadpack)
-add_subdirectory(CDFLIB90)
-add_subdirectory(random)
-add_subdirectory(sobol)
-add_subdirectory(slsqp)
+foreach(component IN ITEMS fitpack lbfgsb_bmnz simplex_csiro minpack newuoa2
+        orderpack quadpack CDFLIB90 random sobol slsqp)
+    add_subdirectory(${component})
+endforeach()

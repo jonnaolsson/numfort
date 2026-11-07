@@ -1,14 +1,10 @@
+numfort_add_test(polynomial_herme herme.f90)
+numfort_add_test(polynomial_polyfit polyfit.f90)
+numfort_add_test(polynomial_polyroots polyroots.f90)
+numfort_add_test(polynomial_polyval polyval.f90)
+numfort_add_test(polynomial_poly_complete poly_complete.f90)
+numfort_add_test(polynomial_poly_create poly_create.f90)
+numfort_add_test(polynomial_ppoly ppoly.f90)
+numfort_add_test(polynomial_ppoly_tensor ppoly_tensor.f90)
 
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(${COMPONENT_NAME}_FILES
-    herme.f90
-    polyfit.f90
-    polyroots.f90
-    polyval.f90
-    poly_complete.f90
-    poly_create.f90
-    ppoly.f90
-    ppoly_tensor.f90
-    PARENT_SCOPE
-)
+file(COPY data DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")

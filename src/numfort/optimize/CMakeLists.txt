@@ -1,7 +1,4 @@
-
-get_filename_component(COMPONENT_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
-
-set(SOURCE_FILES
+target_sources(numfort PRIVATE
     optimize.f90
     diff_helpers_real32.F90
     diff_helpers_real64.F90
@@ -36,14 +33,4 @@ set(SOURCE_FILES
     solver_map_common.f90
     solver_map_real32.F90
     solver_map_real64.F90
-)
-
-add_library(${COMPONENT_NAME} OBJECT ${SOURCE_FILES})
-add_dependencies(${COMPONENT_NAME} common arrays)
-
-# additional internal dependencies
-add_dependencies(${COMPONENT_NAME} interfaces)
-
-target_link_libraries(${COMPONENT_NAME} PRIVATE 
-    simplex_csiro lbfgsb_bmnz minpack newuoa2 slsqp
 )
