@@ -5,6 +5,7 @@ program test_interp_linear
     use numfort_arrays
     use numfort_common_testing
     use numfort_interpolate
+    use numfort_stats, only: set_seed
 
     implicit none
 
@@ -99,6 +100,7 @@ subroutine test_linear_input_checks ()
     allocate (fp(np), source=xp)
 
     allocate (x(nx), fx(nx))
+    call set_seed (12345)
     call random_number (x)
 
     ! Scalar interface
@@ -212,6 +214,7 @@ subroutine test_random ()
     call linspace (xp, x1, xn)
     fp = 2 * xp + 1.0d0
 
+    call set_seed (12345)
     call random_number (x)
     ! correct function values
     x = x * (xn-x1) + x1
@@ -407,6 +410,7 @@ subroutine test_bilinear_interpolate ()
     ! Test with 1d array interface
     n = 15
     allocate (x1(n), x2(n), fx_ok(n), fx(n))
+    call set_seed (12345)
     call random_number (x1)
     call random_number (x2)
 
@@ -455,11 +459,12 @@ subroutine test_bilinear_interpolate ()
 end subroutine
 
 subroutine test_bilinear_extrapolate ()
-    !*  Tests for bilinear interpolation when not all points are interior
+    !*  Tests for bilinear interpolation when not all points are interior.
 
     real (PREC), dimension(:), allocatable :: xp1, xp2, x1, x2
     real (PREC), dimension(:,:), allocatable :: fp
     real (PREC), dimension(:), allocatable :: fx, fx_ok
+    real (PREC) :: fx_scalar
     integer :: n1, n2, n, i, j
     logical :: res_ok
     type (status_t) :: status
@@ -476,42 +481,107 @@ subroutine test_bilinear_extrapolate ()
         fp(:,j) = func1_2d (xp1, xp2(j))
     end do
 
-    ! Test with 1d array interface
-    n = 10
+    ! Construct query points covering:
+    ! 1-4: 4 corners (on boundary, interior)
+    ! 5-8: 4 edges (on boundary, interior)
+    ! 9-12: points outside in a single dimension
+    ! 13-16: points outside in both dimensions (all 4 quadrants)
+    ! 17-20: strictly interior points
+    ! 21-26: seeded random points spanning [-1.5, 1.5] (mixed)
+    n = 26
     allocate (x1(n), x2(n), fx_ok(n), fx(n))
-    call random_number (x1)
-    call random_number (x2)
 
-    ! Rescale to approx. cover most parts of rectangular grid
-    x1(:) = x1 * 2.0 - 1.0
-    x2(:) = x2 * 2.0 - 1.0
+    ! Corners (boundary)
+    x1(1) = xp1(1)
+    x2(1) = xp2(1)
+    x1(2) = xp1(n1)
+    x2(2) = xp2(1)
+    x1(3) = xp1(1)
+    x2(3) = xp2(n2)
+    x1(4) = xp1(n1)
+    x2(4) = xp2(n2)
 
-    ! Set some non-interior points (both or either dimension)
-    x1(1) = -1.5
-    x2(2) = -1.1
-    x1(3) = 1.234d0
-    x2(4) = 1.456d0
-    x1(5) = -1.234d0
-    x2(5) = -2.345d0
-    x1(6) = 2.3456d0
-    x2(6) = 3.4456d0
+    ! Edges (boundary)
+    x1(5) = 0.0_PREC
+    x2(5) = xp2(1)
+    x1(6) = 0.0_PREC
+    x2(6) = xp2(n2)
+    x1(7) = xp1(1)
+    x2(7) = 0.0_PREC
+    x1(8) = xp1(n1)
+    x2(8) = 0.0_PREC
 
-    fill_value = -1000.0
+    ! Outside in single dimension
+    x1(9) = -1.5_PREC
+    x2(9) = 0.2_PREC
+    x1(10) = 1.234_PREC
+    x2(10) = -0.3_PREC
+    x1(11) = 0.1_PREC
+    x2(11) = -1.1_PREC
+    x1(12) = -0.4_PREC
+    x2(12) = 1.456_PREC
+
+    ! Outside in both dimensions (all 4 exterior quadrants)
+    x1(13) = -1.234_PREC
+    x2(13) = -2.345_PREC
+    x1(14) = -1.4_PREC
+    x2(14) = 1.6_PREC
+    x1(15) = 1.7_PREC
+    x2(15) = -1.1_PREC
+    x1(16) = 2.3456_PREC
+    x2(16) = 3.4456_PREC
+
+    ! Strictly interior points
+    x1(17) = 0.25_PREC
+    x2(17) = -0.5_PREC
+    x1(18) = -0.3_PREC
+    x2(18) = 0.7_PREC
+    x1(19) = -0.75_PREC
+    x2(19) = -0.25_PREC
+    x1(20) = 0.5_PREC
+    x2(20) = 0.1_PREC
+
+    ! Seeded random points covering [-1.5, 1.5]
+    call set_seed (12345)
+    call random_number (x1(21:26))
+    call random_number (x2(21:26))
+    x1(21:26) = x1(21:26) * 3.0_PREC - 1.5_PREC
+    x2(21:26) = x2(21:26) * 3.0_PREC - 1.5_PREC
+
+    fill_value = -1000.0_PREC
 
     ! Correct function values
     fx_ok(:) = func1_2d (x1, x2)
 
     ! Overwrite non-interior points with FILL_VALUE
-    do i = 1,n
-        if (x1(i) < xp1(1) .or. x1(i) > xp1(n) .or. x2(i) < xp2(1) .or. x2(i) > xp2(n)) then
+    do i = 1, n
+        if (x1(i) < xp1(1) .or. x1(i) > xp1(n1) &
+            .or. x2(i) < xp2(1) .or. x2(i) > xp2(n2)) then
             fx_ok(i) = fill_value
         end if
     end do
 
-    ! Interpolated values; set non-internal values to -1000
-    call interp_bilinear (x1, x2, xp1, xp2, fp, fx, fill_value=fill_value, status=status)
+    ! Interpolated values; set non-interior values to FILL_VALUE
+    call interp_bilinear (x1, x2, xp1, xp2, fp, fx, fill_value=fill_value, &
+        status=status)
     res_ok = (status == NF_STATUS_OK) .and. all_close (fx, fx_ok, atol=1.0e-10_PREC)
-    if (.not. (res_ok)) error stop "Interpolation at non-int. values using FILL_VALUE"
+    if (.not. (res_ok)) &
+        error stop "Interpolation at non-int. values using FILL_VALUE"
+
+    ! Test scalar interface with fill_value for exterior point
+    call interp_bilinear (x1(9), x2(9), xp1, xp2, fp, fx_scalar, &
+        fill_value=fill_value, status=status)
+    res_ok = (status == NF_STATUS_OK) .and. abs (fx_scalar - fill_value) < 1.0e-10_PREC
+    if (.not. (res_ok)) &
+        error stop "Interpolation at non-int. values using FILL_VALUE, scalar exterior"
+
+    ! Test scalar interface with fill_value for interior corner point
+    call interp_bilinear (x1(1), x2(1), xp1, xp2, fp, fx_scalar, &
+        fill_value=fill_value, status=status)
+    res_ok = (status == NF_STATUS_OK) .and. &
+        abs (fx_scalar - func1_2d (x1(1), x2(1))) < 1.0e-10_PREC
+    if (.not. (res_ok)) &
+        error stop "Interpolation at non-int. values using FILL_VALUE, scalar corner"
 
     ! Test with extrapolation
     fx_ok(:) = func1_2d (x1, x2)
