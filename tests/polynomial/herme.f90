@@ -65,7 +65,10 @@ subroutine test_quadrature ()
 
     ! Read in list of number of quadrature points (=polynomial degrees)
     allocate (iwork(100), source=0)
-    call read_fixed (path="data/hermegauss_n.csv", fmt="(*(i3,:,/))", dat=iwork)
+    call read_fixed (path="data/hermegauss_n.csv", fmt="(*(i3,:,/))", dat=iwork, &
+        status=status)
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Failed reading hermegauss_n.csv"
 
     ! drop trailing zeros
     k = count (iwork > 0)
@@ -73,8 +76,11 @@ subroutine test_quadrature ()
 
     allocate (dat(3, sum(degrees)), source=0.0_PREC)
     ! Read in actual quadrature data
-    call read_fixed (path="data/hermegauss_data.csv", fmt="(*(f3.0, 2(f50.30)))", &
-        dat=dat, transform="transpose", status=status)
+    call read_fixed (path="data/hermegauss_data.csv", &
+        fmt="(*(f3.0, 2(f50.30), :, /))", dat=dat, transform="format", &
+        status=status)
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Failed reading hermegauss_data.csv"
 
     do i = 1, k
         n = degrees(i)
