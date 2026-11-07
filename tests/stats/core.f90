@@ -861,10 +861,11 @@ end subroutine
 subroutine test_cov ()
     !*  Unit tests for COV and CORRCOEF routines
 
-    real (PREC), dimension(:,:), allocatable :: x, vcv, vcv_desired
-    real (PREC), dimension(:), allocatable :: eps, var_x
+    real (PREC), dimension(:,:), allocatable :: x, vcv, vcv_desired, x_eps, cov_eps
+    real (PREC), dimension(:), allocatable :: eps, eps2
     integer :: nvars, nobs
-    real (PREC) :: s, alpha, beta1, beta2, var_eps1, var_eps2, diff
+    real (PREC) :: s, alpha, beta1, beta2
+    real (PREC) :: var_x1, var_x2, var_x3, cov_x1_x2, cov_x1_x3, cov_x2_x3
     type (status_t) :: status
     logical :: vcv_ok
 
@@ -1003,52 +1004,69 @@ subroutine test_cov ()
         error stop "CORRCOEF called with 1 variable, multiple obs."
     deallocate (x, vcv)
 
-    ! === CORRCOEF tests with several variables
+    ! === CORRCOEF tests with several variables ===
+    call set_seed (1234)
     nobs = 100000
     nvars = 3
-    allocate (x(nobs,nvars), vcv(nvars,nvars), eps(nobs))
-    allocate (var_x(nvars))
+    allocate (x(nobs,nvars), vcv(nvars,nvars), eps(nobs), eps2(nobs))
+    allocate (x_eps(nobs,3), cov_eps(3,3))
     call random_number (x(:,1))
     call rvs (norm, eps, scale=0.1_PREC)
-    call std (eps, var_eps1)
-    var_eps1 = var_eps1**2.0
 
     beta1 = 0.234d0
     beta2 = -7.2389d0
     x(:,2) = 0.213d0 + beta1 * x(:,1) + eps
 
-    call rvs (norm, eps, scale=0.05_PREC)
-    call std (eps, var_eps2)
-    var_eps2 = var_eps2**2.0
-
-    x(:,3) = -12.234d0 + beta2 * x(:,1) + eps
-    call std (x, var_x)
-    var_x(:) = var_x**2.0
+    call rvs (norm, eps2, scale=0.05_PREC)
+    x(:,3) = -12.234d0 + beta2 * x(:,1) + eps2
 
     status = NF_STATUS_UNDEFINED
     call corrcoef (x, vcv, status=status)
-    ! Cov(x1,x2) = beta1 * var(x1) as above
-    ! Var(x2) = beta1^2 * Var(x1) + Var(eps)
-    ! Corr(x1,x2) = beta1 * Var(x1) / sqrt(Var(x1) * (beta^2*Var(x1) + Var(eps))
-    ! For correlations between X2, X3:
-    !   Cov(x2,x3)  = Cov(alpha1+beta1*x1+eps1, alpha2+beta2*x1+eps2) =
-    !               = beta1 * beta2 * Var(x1)
-    !   Corr(x2,x3) = (beta1*beta2*Var(X1))/sqrt((beta1^2*Var(x1)+Var(eps1)) *
-    !                   (beta2^2*Var(X1)+Var(eps2))
+
+    ! Compute exact finite-sample reference:
+    ! For linear models x2 = alpha1 + beta1*x1 + eps1 and
+    ! x3 = alpha2 + beta2*x1 + eps2, population formulas assume
+    ! Cov(x1, eps) = 0 and Cov(eps1, eps2) = 0. In finite samples, these
+    ! noise cross-covariances are non-zero (O(1/sqrt(N))).
+    !
+    ! By bilinearity of the sample covariance operator:
+    !   Var(x2) = beta1^2 * Var(x1) + Var(eps1) + 2*beta1*Cov(x1, eps1)
+    !   Var(x3) = beta2^2 * Var(x1) + Var(eps2) + 2*beta2*Cov(x1, eps2)
+    !   Cov(x1, x2) = beta1 * Var(x1) + Cov(x1, eps1)
+    !   Cov(x1, x3) = beta2 * Var(x1) + Cov(x1, eps2)
+    !   Cov(x2, x3) = beta1*beta2*Var(x1) + beta1*Cov(x1, eps2)
+    !               + beta2*Cov(x1, eps1) + Cov(eps1, eps2)
+    !
+    ! Compute sample covariance matrix of primitives (x1, eps1, eps2):
+    x_eps(:,1) = x(:,1)
+    x_eps(:,2) = eps
+    x_eps(:,3) = eps2
+    call cov (x_eps, cov_eps)
+
+    ! Exact sample variances of x1, x2, x3:
+    var_x1 = cov_eps(1,1)
+    var_x2 = beta1**2.0_PREC * var_x1 + cov_eps(2,2) + 2.0_PREC * beta1 * cov_eps(1,2)
+    var_x3 = beta2**2.0_PREC * var_x1 + cov_eps(3,3) + 2.0_PREC * beta2 * cov_eps(1,3)
+
+    ! Exact sample covariances:
+    cov_x1_x2 = beta1 * var_x1 + cov_eps(1,2)
+    cov_x1_x3 = beta2 * var_x1 + cov_eps(1,3)
+    cov_x2_x3 = beta1 * beta2 * var_x1 + beta1 * cov_eps(1,3) + beta2 * cov_eps(1,2) &
+        + cov_eps(2,3)
+
+    ! Exact sample correlation matrix:
     allocate (vcv_desired(nvars,nvars), source=1.0_PREC)
-    vcv_desired(1,3) = beta2 * var_x(1) / sqrt(var_x(1) * (beta2**2.0*var_x(1) + var_eps2))
+    vcv_desired(1,2) = cov_x1_x2 / sqrt(var_x1 * var_x2)
+    vcv_desired(2,1) = vcv_desired(1,2)
+    vcv_desired(1,3) = cov_x1_x3 / sqrt(var_x1 * var_x3)
     vcv_desired(3,1) = vcv_desired(1,3)
-    vcv_desired(2,1) = beta1 * var_x(1) / sqrt(var_x(1) * (beta1**2.0*var_x(1) + var_eps1))
-    vcv_desired(1,2) = vcv_desired(2,1)
-    vcv_desired(2,3) = beta1*beta2*var_x(1)/sqrt((beta1**2.0*var_x(1) + var_eps1)) &
-        / sqrt(beta2**2.0 * var_x(1) + var_eps2)
+    vcv_desired(2,3) = cov_x2_x3 / sqrt(var_x2 * var_x3)
     vcv_desired(3,2) = vcv_desired(2,3)
 
-    diff = maxval(abs(vcv - vcv_desired))
-
-    vcv_ok = diff < 1.0e-3_PREC
+    vcv_ok = all_close (vcv, vcv_desired, rtol=0.0_PREC, atol=1.0e-12_PREC)
     if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
         error stop "CORRCOEF called with X2, X3 linear functions of X1 with error terms"
+    deallocate (x, vcv, eps, eps2, x_eps, cov_eps, vcv_desired)
 
 end subroutine
 
