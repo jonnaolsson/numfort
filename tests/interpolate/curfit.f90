@@ -3,8 +3,6 @@ program test_interpolate_curfit
 
     use, intrinsic :: iso_fortran_env
 
-    use fcore_common, only: str, operator(//)
-    use fcore_testing
     use numfort_arrays, only: linspace
     use numfort_interpolate, workspace => workspace_real64
 
@@ -16,24 +14,12 @@ program test_interpolate_curfit
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("numfort_interpolate CURFIT unit tests")
-
-    call test_cubic (tests)
-
-    call tests%print ()
+    call test_cubic ()
 
 end subroutine
 
-
-
-subroutine test_cubic (tests)
+subroutine test_cubic ()
     !*   Unit tests for cubic splines
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
-    type (str) :: msg
 
     integer, parameter :: m = 20, ms = 50
     real (PREC), dimension(:), allocatable :: x, fx, fpx, fppx
@@ -46,8 +32,6 @@ subroutine test_cubic (tests)
     type (status_t) :: status
     integer :: nest, n, ik
     integer, parameter :: iopt = 0
-
-    tc => tests%add_test ("Cubic spline interpolation")
 
     xlb = -2.0
     xub = 2.0
@@ -76,18 +60,18 @@ subroutine test_cubic (tests)
 
         call splev (knots(1:n), coefs(1:n), k, x, fx_s, status=status)
         diff = maxval(abs(fx_s-fx))
-        msg = "Polynomial of degree " // str(ik, 'i0') // ": sup norm (s(x)-f(x)) < 1e-10"
-        call tc%assert_true (diff < 1e-10, msg)
+        if (.not. (diff < 1e-10)) &
+            error stop "Cubic spline values differ from the polynomial"
 
         call splder (knots(1:n), coefs(1:n), k, 1, x, fpx_s, work=work, status=status)
         diff = maxval(abs(fpx-fpx_s))
-        msg = "Polynomial of degree " // str(ik, 'i0') // ": sup norm (s'(x)-f'(x)) < 1e-10"
-        call tc%assert_true (diff < 1e-10, msg)
+        if (.not. (diff < 1e-10)) &
+            error stop "Cubic spline first derivative check failed"
 
         call splder (knots(1:n), coefs(1:n), k, 2, x, fppx_s, work=work, status=status)
         diff = maxval(abs(fppx-fppx_s))
-        msg = "Polynomial of degree " // str(ik, 'i0') // ": sup norm (s''(x)-f''(x)) < 1e-10"
-        call tc%assert_true (diff < 1e-10, msg)
+        if (.not. (diff < 1e-10)) &
+            error stop "Cubic spline second derivative check failed"
 
         deallocate (x, fx, fpx, fppx)
         deallocate (fx_s, fpx_s, fppx_s)
@@ -95,8 +79,6 @@ subroutine test_cubic (tests)
     end do
 
 end subroutine
-
-
 
 elemental subroutine fcn (x, k, fx, fpx, fppx)
     !*  Polynomial test function (guaranteed to be concave for k=2)

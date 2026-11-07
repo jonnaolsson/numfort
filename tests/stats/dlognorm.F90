@@ -9,9 +9,6 @@ program test_numfort_stats_dlognorm
     use numfort_stats, dlognorm => dlognorm_real64
     use numfort_common_testing
 
-    use fcore_testing
-    use fcore_strings
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -24,41 +21,25 @@ program test_numfort_stats_dlognorm
 
     call test_all ()
 
-
     contains
-
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ('Unit tests for log-normal distribution')
-
-    call test_pdf (tests)
-    call test_cdf (tests)
-    call test_ppf (tests)
-    call test_cdf_ppf_inv (tests)
-
-    call tests%print ()
+    call test_pdf ()
+    call test_cdf ()
+    call test_ppf ()
+    call test_cdf_ppf_inv ()
 
 end subroutine
 
-
-
-subroutine test_pdf (tests)
+subroutine test_pdf ()
     !*  Unit tests for the lognormal PDF routine
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
-    type (str) :: msg
 
     real (PREC), dimension(:), allocatable :: fx
     real (PREC) :: sigma, mu, xi, fxi
     integer :: i, j, n
     real (PREC), parameter :: ATOL = 1.0e-10_PREC, RTOL=1.0e-10_PREC
     logical :: is_ok
-
-    tc => tests%add_test ('Log-normal PDF tests')
 
     ! Compute PDF for all sigma/mu combinations used to generate the Scipy
     ! diagnostic data
@@ -74,10 +55,8 @@ subroutine test_pdf (tests)
 
             ! Compare to PDF computed in Scipy
             fx(:) = pdf (lognorm, XDATA, loc=mu, scale=sigma)
-            msg = 'PDF for loc =' // str(mu, 'f7.3') // '; scale =' &
-                // str(sigma, 'f7.3')
             is_ok = all_close (fx, SCIPY_PDF_DATA(:,j,i), atol=ATOL, rtol=RTOL)
-            call tc%assert_true (is_ok, msg)
+            if (.not. (is_ok)) error stop "Lognormal PDF disagrees with the reference"
         end do
     end do
 
@@ -91,44 +70,33 @@ subroutine test_pdf (tests)
             ! Evaluate at lower bound
             xi = 0.0
             fxi = pdf (lognorm, xi, loc=mu, scale=sigma)
-            msg = 'PDF(0.0) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (fxi == 0.0, msg)
+            if (.not. (fxi == 0.0)) &
+                error stop "Lognormal PDF(0.0) boundary check failed"
 
             ! Evaluate at "upper" bound
             xi = ieee_value (xi, IEEE_POSITIVE_INF)
             fxi = pdf (lognorm, xi, loc=mu, scale=sigma)
-            msg = 'PDF(inf) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (fxi == 0.0, msg)
+            if (.not. (fxi == 0.0)) &
+                error stop "Lognormal PDF(inf) boundary check failed"
 
             ! Evaluate at negative values
             xi = -1.0
             fxi = pdf (lognorm, xi, loc=mu, scale=sigma)
-            msg = 'PDF(-1.0) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (fxi == 0.0, msg)
+            if (.not. (fxi == 0.0)) &
+                error stop "Lognormal PDF(-1.0) boundary check failed"
         end do
     end do
 
 end subroutine
 
-
-
-subroutine test_cdf (tests)
+subroutine test_cdf ()
     !*  Unit tests for the lognormal CDF routine
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
-    type (str) :: msg
 
     real (PREC), dimension(:), allocatable :: fx
     real (PREC) :: sigma, mu, xi, fxi
     integer :: i, j, n
     real (PREC), parameter :: ATOL = 1.0e-10_PREC, RTOL=1.0e-10_PREC
     logical :: is_ok
-
-    tc => tests%add_test ('Log-normal CDF tests')
 
     ! Compute CDF for all sigma/mu combinations used to generate the Scipy
     ! diagnostic data
@@ -144,10 +112,8 @@ subroutine test_cdf (tests)
 
             ! Compare to CDF computed in scipy
             fx(:) = cdf (lognorm, XDATA, loc=mu, scale=sigma)
-            msg = 'CDF for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
             is_ok = all_close (fx, SCIPY_CDF_DATA(:,j,i), atol=ATOL, rtol=RTOL)
-            call tc%assert_true (is_ok, msg)
+            if (.not. (is_ok)) error stop "Lognormal CDF disagrees with the reference"
         end do
     end do
 
@@ -161,44 +127,33 @@ subroutine test_cdf (tests)
             ! Evaluate at lower bound
             xi = 0.0
             fxi = cdf (lognorm, xi, loc=mu, scale=sigma)
-            msg = 'CDF(0.0) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (fxi == 0.0, msg)
+            if (.not. (fxi == 0.0)) &
+                error stop "Lognormal CDF(0.0) boundary check failed"
 
             ! Evaluate at "upper" bound
             xi = ieee_value (xi, IEEE_POSITIVE_INF)
             fxi = cdf (lognorm, xi, loc=mu, scale=sigma)
-            msg = 'CDF(inf) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (fxi == 1.0_PREC, msg)
+            if (.not. (fxi == 1.0_PREC)) &
+                error stop "Lognormal CDF(inf) boundary check failed"
 
             ! Evaluate at negative values
             xi = -1.0
             fxi = cdf (lognorm, xi, loc=mu, scale=sigma)
-            msg = 'CDF(-1.0) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (fxi == 0.0, msg)
+            if (.not. (fxi == 0.0)) &
+                error stop "Lognormal CDF(-1.0) boundary check failed"
         end do
     end do
 
 end subroutine
 
-
-
-subroutine test_ppf (tests)
+subroutine test_ppf ()
     !*  Unit tests for the lognormal PPF (inverse CDF) routine
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
-    type (str) :: msg
 
     real (PREC), dimension(:), allocatable :: xx
     real (PREC) :: sigma, mu, fxi, qi
     integer :: i, j
     real (PREC), parameter :: ATOL = 1.0e-10_PREC, RTOL=1.0e-10_PREC
     logical :: is_ok
-
-    tc => tests%add_test ('Log-normal PPF tests')
 
     ! Compute PPF for all sigma/mu combinations used to generate the Scipy
     ! diagnostic data
@@ -214,10 +169,8 @@ subroutine test_ppf (tests)
 
             ! Comparte to quantiles computed in scipy
             xx(:) = ppf (lognorm, QUANTILE_DATA, loc=mu, scale=sigma)
-            msg = 'PPF for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
             is_ok = all_close (xx, SCIPY_PPF_DATA(:,j,i), atol=ATOL, rtol=RTOL)
-            call tc%assert_true (is_ok, msg)
+            if (.not. (is_ok)) error stop "Lognormal PPF disagrees with the reference"
 
         end do
     end do
@@ -232,43 +185,32 @@ subroutine test_ppf (tests)
             ! Evaluate at lower bound
             fxi = 0.0
             qi = ppf (lognorm, fxi, loc=mu, scale=sigma)
-            msg = 'PPF(0.0) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (qi == 0.0, msg)
+            if (.not. (qi == 0.0)) error stop "Lognormal PPF(0.0) boundary check failed"
 
             ! Evaluate at "upper" bound
             fxi = 1.0
             qi = ppf (lognorm, fxi, loc=mu, scale=sigma)
-            msg = 'PPF(1.0) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (ieee_class (qi) == IEEE_POSITIVE_INF, msg)
+            if (.not. (ieee_class (qi) == IEEE_POSITIVE_INF)) &
+                error stop "Lognormal PPF(1.0) boundary check failed"
 
             ! PPF for invalid domain
             fxi = -1.0
             qi = ppf (lognorm, fxi, loc=mu, scale=sigma)
-            msg = 'PPF(-1.0) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (ieee_is_nan (qi), msg)
+            if (.not. (ieee_is_nan (qi))) &
+                error stop "Lognormal PPF(-1.0) boundary check failed"
 
             fxi = 1.1
             qi = ppf (lognorm, fxi, loc=mu, scale=sigma)
-            msg = 'PPF(1.1) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (ieee_is_nan (qi), msg)
+            if (.not. (ieee_is_nan (qi))) &
+                error stop "Lognormal PPF(1.1) boundary check failed"
         end do
     end do
 
 end subroutine
 
-
-
-subroutine test_cdf_ppf_inv (tests)
+subroutine test_cdf_ppf_inv ()
     ! Unit tests checking that the CDF and PPF are (approximate) inverses
     ! of each other.
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
-    type (str) :: msg
 
     real (PREC), parameter :: MU_ALL(*) = [-10.234d0, 0.0d0, 1.234d0]
     real (PREC), parameter :: SIGMA_ALL(*) = [0.0213d0, 1.0d0, 2.2345d0]
@@ -277,8 +219,6 @@ subroutine test_cdf_ppf_inv (tests)
     integer :: i, j, n
     real (PREC), parameter :: ATOL = 1.0e-8_PREC, RTOL=1.0e-8_PREC
     logical :: is_ok
-
-    tc => tests%add_test ('Log-normal PPF tests')
 
     ! Compute PPF for all sigma/mu combinations used to generate the Scipy
     ! diagnostic data
@@ -308,17 +248,14 @@ subroutine test_cdf_ppf_inv (tests)
             diff = maxval(abs(xx1-xx))
 
             is_ok = all_close (xx1, xx, atol=ATOL, rtol=RTOL)
-            msg = 'PPF(CDF(x)) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (is_ok, msg)
+            if (.not. (is_ok)) error stop "Lognormal PPF/CDF value round trip failed"
 
             ! Direction 2: CDF(PPF(q)) == q
             xx1(:) = ppf (lognorm, qq, loc=mu, scale=sigma)
             qq1(:) = cdf (lognorm, xx1, loc=mu, scale=sigma)
             is_ok = all_close (qq1, qq, atol=ATOL, rtol=RTOL)
-            msg = 'CDF(PPF(q)) for loc =' // str(mu, 'f7.3') // '; scale = ' &
-                // str(sigma, 'f7.3')
-            call tc%assert_true (is_ok, msg)
+            if (.not. (is_ok)) &
+                error stop "Lognormal CDF/PPF probability round trip failed"
 
         end do
     end do

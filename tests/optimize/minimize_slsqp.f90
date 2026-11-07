@@ -5,8 +5,6 @@ program test_optimize_minimize_slsqp
     use, intrinsic :: ieee_arithmetic
     use, intrinsic :: iso_fortran_env
 
-    use fcore_common, FC_status_t => status_t
-    use fcore_testing
     use numfort_arrays
     use numfort_optimize, workspace => workspace_real64, &
         optim_result => optim_result_real64
@@ -17,22 +15,14 @@ program test_optimize_minimize_slsqp
 
     contains
 
-
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort_optimize_minimize_slsqp unit tests")
+    call test_rosenbrock_scipy ()
+    call test_quadratic_scipy ()
 
-    call test_rosenbrock_scipy (tests)
-    call test_quadratic_scipy (tests)
-
-    call tests%print ()
 end subroutine
 
-
-subroutine test_rosenbrock_scipy (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_rosenbrock_scipy ()
 
     type (workspace) :: work
     type (optim_result) :: res
@@ -53,8 +43,6 @@ subroutine test_rosenbrock_scipy (tests)
         [0.826247374068299d0, 0.682072165838992d0]
     real (PREC), parameter :: fx2_scipy = 0.030227497664672d0
 
-    tc => tests%add_test ("Rosenbrock function: Fortran vs. Scipy wrapper")
-
     ! Problem #1: Rosenbrock with inequality constr.
     x = 0.1d0
     lbounds = -1.0d0
@@ -65,8 +53,8 @@ subroutine test_rosenbrock_scipy (tests)
     dx = maxval(abs(x-x1_scipy))
     dfx = abs(res%fx(1)-fx1_scipy)
 
-    call tc%assert_true (dx < tol .and. dfx < tol, &
-        "Problem 1: Rosenbrock with ineq. and box constraints")
+    if (.not. (dx < tol .and. dfx < tol)) &
+        error stop "Problem 1: Rosenbrock with ineq. and box constraints"
 
     ! Problem #2: Rosenbrock with equality constr.
     x = 0.1d0
@@ -78,15 +66,13 @@ subroutine test_rosenbrock_scipy (tests)
     dx = maxval(abs(x-x2_scipy))
     dfx = abs(res%fx(1)-fx2_scipy)
 
-    call tc%assert_true (dx < tol .and. dfx < tol, &
-        "Problem 2: Rosenbrock with eq. and box constraints")
+    if (.not. (dx < tol .and. dfx < tol)) &
+        error stop "Problem 2: Rosenbrock with eq. and box constraints"
 
 end subroutine
 
 
-subroutine test_quadratic_scipy (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_quadratic_scipy ()
 
     type (workspace) :: work
     type (optim_result) :: res
@@ -111,9 +97,6 @@ subroutine test_quadratic_scipy (tests)
         -1.897200340510266d-07, -5.000000000000293d+00 ]
     real (PREC), parameter :: fx2_scipy = 60.750000000107406d0
 
-
-    tc => tests%add_test ("Quadratic function: Fortran vs. Scipy wrapper")
-
     ! Problem 3
     x = 2.0d0
     call minimize_slsqp (fobj3, x, m=2, f_ieqcons=fconstr_ieq3, &
@@ -122,8 +105,8 @@ subroutine test_quadratic_scipy (tests)
     dx = maxval(abs(x-x1_scipy))
     dfx = abs(res%fx(1)-fx1_scipy)
 
-    call tc%assert_true (dx < tol .and. dfx < tol, &
-        "Problem 3: Quadratic obj. with ineq. constraints")
+    if (.not. (dx < tol .and. dfx < tol)) &
+        error stop "Problem 3: Quadratic obj. with ineq. constraints"
 
     ! Problem 4: Same as problem 3, but impose additional box constraints
     ! on some of the dimensions of x.
@@ -147,8 +130,8 @@ subroutine test_quadratic_scipy (tests)
     dx = maxval(abs(x-x2_scipy))
     dfx = abs(res%fx(1)-fx2_scipy)
 
-    call tc%assert_true (dx < tol .and. dfx < tol, &
-        "Problem 4: Quadratic obj. with ineq. and partial box constraints")
+    if (.not. (dx < tol .and. dfx < tol)) &
+        error stop "Problem 4: Quadratic obj. with ineq. and partial box constraints"
 end subroutine
 
 

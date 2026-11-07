@@ -1,13 +1,9 @@
-if(NOT TARGET fcore::fcore)
-    find_package(fcore CONFIG REQUIRED)
-endif()
-
 function(numfort_add_test name source)
     set(target numfort_test_${name})
     add_executable(${target} "${source}" ${ARGN})
     set_target_properties(${target} PROPERTIES
         Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${target}-modules")
-    target_link_libraries(${target} PRIVATE numfort::numfort fcore::fcore)
+    target_link_libraries(${target} PRIVATE numfort::numfort)
     target_include_directories(${target} PRIVATE
         "${PROJECT_SOURCE_DIR}/src/numfort/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/include")

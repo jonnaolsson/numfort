@@ -8,9 +8,6 @@ program test_numfort_core_libc
     use numfort_core
     use numfort_common_testing
 
-    use fcore_strings
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -19,30 +16,16 @@ program test_numfort_core_libc
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ('Unit tests for wrapper around LIBC math functions')
-
-    call test_log1p (tests)
-
-    call tests%print ()
+    call test_log1p ()
 
 end subroutine
 
-
-
-subroutine test_log1p (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_log1p ()
 
     real (PREC), dimension(:), allocatable :: xx, fxx, fxx1
     integer :: n
-
-    tc => tests%add_test ('Unit tests for LOG1P')
 
     n = 20
 
@@ -54,8 +37,8 @@ subroutine test_log1p (tests)
     fxx(:) = log(1.0_PREC + xx)
     fxx1(:) = log1p (xx)
 
-    call tc%assert_true (all_close (fxx1, fxx, atol=1.0e-12_PREC), &
-        'Checking LOG1P(x) = LOG(1 + X) for sufficiently large x')
+    if (.not. (all_close (fxx1, fxx, atol = 1.0e-12_PREC))) &
+        error stop "Checking LOG1P(x) = LOG(1 + X) for sufficiently large x"
 
 end subroutine
 

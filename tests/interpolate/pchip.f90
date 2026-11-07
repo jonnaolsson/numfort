@@ -12,38 +12,23 @@ program test_interp_pchip
     use numfort_common_testing
     use numfort_interpolate
 
-    use fcore_strings
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
 
     call test_all ()
 
-
     contains
-
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("PCHIP interpolator unit tests")
-
-    call test_input (tests)
-    call test_interp (tests)
-    call test_extrap (tests)
-
-    call tests%print()
+    call test_input ()
+    call test_interp ()
+    call test_extrap ()
 
 end subroutine
 
-
-subroutine test_input (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_input ()
 
     real (PREC), dimension(3) :: x, y, xp
     real (PREC), dimension(:), allocatable :: coef
@@ -51,15 +36,13 @@ subroutine test_input (tests)
 
     type (status_t) :: status
 
-    tc => tests%add_test ("Input checks unit tests")
-
     ! FIT: Check with too small input data arrays
     n = 1
     ncoef = interp_pchip_get_ncoef (n)
     allocate (coef(ncoef))
     call interp_pchip_fit (x(1:n), y(1:n), coef, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "FIT: Insufficient input data")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "FIT: Insufficient input data"
     deallocate (coef)
 
     ! FIT: Different-size input arrays
@@ -68,8 +51,8 @@ subroutine test_input (tests)
     allocate (coef(ncoef))
     status = NF_STATUS_OK
     call interp_pchip_fit (x(1:n), y(1:1), coef, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "FIT: different-size input data arrays")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "FIT: different-size input data arrays"
     deallocate (coef)
 
     ! FIT: COEF output array too small
@@ -78,8 +61,8 @@ subroutine test_input (tests)
     allocate (coef(ncoef))
     status = NF_STATUS_OK
     call interp_pchip_fit (x(1:n), y(1:n), coef, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "FIT: COEF output array too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "FIT: COEF output array too small"
     deallocate (coef)
 
     ! EVAL: incompatible input array size
@@ -88,8 +71,8 @@ subroutine test_input (tests)
     ncoef = interp_pchip_get_ncoef (n)
     allocate (coef(ncoef))
     call interp_pchip_eval (xp, coef, x(1:n), y(1:n-1), status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EVAL: different sizes of input arrays X, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EVAL: different sizes of input arrays X, Y"
     deallocate (coef)
 
     ! EVAL: XP array too small
@@ -98,8 +81,8 @@ subroutine test_input (tests)
     allocate (coef(ncoef))
     status = NF_STATUS_OK
     call interp_pchip_eval (xp(1:1), coef, x, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EVAL: XP input array too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EVAL: XP input array too small"
     deallocate (coef)
 
     ! EVAL: XP and COEF not compatible
@@ -107,8 +90,8 @@ subroutine test_input (tests)
     allocate (coef(ncoef))
     status = NF_STATUS_OK
     call interp_pchip_eval (xp, coef, x, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EVAL: XP and COEF input arrays incompatible")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EVAL: XP and COEF input arrays incompatible"
     deallocate (coef)
 
     ! EVAL: invalid ORDER argument
@@ -117,39 +100,33 @@ subroutine test_input (tests)
     allocate (coef(ncoef))
     status = NF_STATUS_OK
     call interp_pchip_eval (xp, coef, x, y, order=3, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EVAL: ORDER argument larger than admissible range")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EVAL: ORDER argument larger than admissible range"
 
     status = NF_STATUS_OK
     call interp_pchip_eval (xp, coef, x, y, order=-1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EVAL: ORDER argument smaller than admissible range")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EVAL: ORDER argument smaller than admissible range"
 
     ! EVAL: LEFT, RIGHT present if EXT=NF_INTERP_EVAL_CONST
     status = NF_STATUS_OK
     call interp_pchip_eval (xp, coef, x, y, ext=NF_INTERP_EVAL_CONST, &
         right=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EVAL: missing LEFT when EXT=NF_INTERP_EVAL_CONST")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EVAL: missing LEFT when EXT=NF_INTERP_EVAL_CONST"
 
     status = NF_STATUS_OK
     call interp_pchip_eval (xp, coef, x, y, ext=NF_INTERP_EVAL_CONST, &
         left=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EVAL: missing RIGHT when EXT=NF_INTERP_EVAL_CONST")
-
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EVAL: missing RIGHT when EXT=NF_INTERP_EVAL_CONST"
 
 end subroutine
 
-
-
-subroutine test_interp (tests)
+subroutine test_interp ()
     !*  Unit tests for interpolating various functions at interior points.
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     type (status_t) :: status
-    type (str) :: msg
     type (workspace) :: work
     integer :: n, ncoef, np, i, j
     real (PREC), dimension(:), allocatable :: x, y, xp, yp, coef, y_ok, yp_ok
@@ -191,11 +168,6 @@ subroutine test_interp (tests)
          0.0, 0.0, 0.0, 0.0, 0.0 &
         ], shape=[5,3])
 
-
-
-    tc => tests%add_test ('Interpolation tests')
-
-
     ! Test 1: linear monotinic function
     np = 10
     n = 5
@@ -205,23 +177,20 @@ subroutine test_interp (tests)
     call fcn1 (xp, yp, order=0)
     call linspace (x, 2.0_PREC, 7.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: linear function")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: linear function"
 
     call interp_pchip_eval (xp, coef, xp, yp_ok, status=status)
-    msg = 'EVAL: Linear function, interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL: Linear function, interpolated values at XP"
 
     do i = 0, 2
         call fcn1 (x, y_ok, order=i)
-        msg = "EVAL: Linear function, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, y_ok, atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, y_ok, atol=TOL))) &
+            error stop "PCHIP check failed: Linear function"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
-
 
     ! Test 2: f(x) = abs(x)
     np = 9
@@ -233,22 +202,20 @@ subroutine test_interp (tests)
     call fcn2 (xp, yp, order=0)
     call linspace (x, -2.0_PREC, 2.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: f(x) = abs(x)")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = abs(x)"
 
     call interp_pchip_eval (xp, coef, xp, yp_ok, status=status)
-    msg = 'EVAL: p(x) ~ abs(x), check interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL: p(x) ~ abs(x), check interpolated values at XP"
 
     do i = 0, 2
-        msg = "EVAL: p(x) ~ abs(x), order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, SCIPY_TEST2(:,i) , atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST2(:,i) , &
+            atol=TOL))) &
+            error stop "PCHIP check failed: p(x) ~ abs(x)"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
-
 
     ! Test 3: f(x) = x**2.0
     np = 13
@@ -259,22 +226,20 @@ subroutine test_interp (tests)
     call fcn3 (xp, yp, order=0)
     call linspace (x, -0.7_PREC, 2.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: f(x) = x^2")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = x^2"
 
     call interp_pchip_eval (xp, coef, xp, yp_ok, status=status)
-    msg = 'EVAL: p(x) ~ x^2, check interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL: p(x) ~ x^2, check interpolated values at XP"
 
     do i = 0, 2
-        msg = "EVAL: p(x) ~ x^2, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, SCIPY_TEST3(:,i) , atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST3(:,i) , &
+            atol=TOL))) &
+            error stop "PCHIP check failed: p(x) ~ x^2"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
-
 
     ! Test 4: f(x) = x^3
     np = 11
@@ -285,18 +250,17 @@ subroutine test_interp (tests)
     call fcn4 (xp, yp, order=0)
     call linspace (x, 1.0_PREC, 5.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status, work=work)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: f(x) = x^3")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = x^3"
 
     call interp_pchip_eval (xp, coef, xp, yp_ok, status=status)
-    msg = 'EVAL: p(x) ~ x^3, check interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL: p(x) ~ x^3, check interpolated values at XP"
 
     do i = 0, 2
-        msg = "EVAL: p(x) ~ x^3, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, SCIPY_TEST4(:,i) , atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST4(:,i) , &
+            atol=TOL))) &
+            error stop "PCHIP check failed: p(x) ~ x^3"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
@@ -310,22 +274,20 @@ subroutine test_interp (tests)
     call fcn5 (xp, yp, order=0)
     call linspace (x, -5.0_PREC, -1.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status, work=work)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: f(x) = 2(x^3-x)")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = 2(x^3-x)"
 
     call interp_pchip_eval (xp, coef, xp, yp_ok, status=status)
-    msg = 'EVAL: p(x) ~ 2(x^3-x), check interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL: p(x) ~ 2(x^3-x), check interpolated values at XP"
 
     do i = 0, 2
-        msg = "EVAL: p(x) ~ 2(x^3-x), order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, SCIPY_TEST5(:,i) , atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST5(:,i) , &
+            atol=TOL))) &
+            error stop "PCHIP check failed: p(x) ~ 2(x^3-x)"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
-
 
     ! Test 6: CRRA utility
     np = 51
@@ -336,22 +298,19 @@ subroutine test_interp (tests)
     call fcn6 (xp, yp, order=0)
     call linspace (x, 0.2_PREC, 5.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status, work=work)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: CRRA utility")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: CRRA utility"
 
     call interp_pchip_eval (xp, coef, xp, yp_ok, status=status)
-    msg = 'EVAL: CRRA utility, check interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL: CRRA utility, check interpolated values at XP"
 
     do i = 0, 2
-        msg = "EVAL: CRRA utility, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, SCIPY_TEST6(:,i) , atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST6(:,i) , atol=TOL))) &
+            error stop "PCHIP check failed: CRRA utility"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
-
 
     ! Test 7: Check that linear function was fit if only 2 data points are
     ! provided.
@@ -363,18 +322,16 @@ subroutine test_interp (tests)
     call fcn6 (xp, yp, order=0)
     call linspace (x, 0.8_PREC, 5.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status, work=work)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: CRRA utility (2 points)")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: CRRA utility (2 points)"
 
     call interp_pchip_eval (xp, coef, xp, yp_ok, status=status)
-    msg = 'EVAL: CRRA utility (2 points), check interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL: CRRA utility (2 points), check interpolated values at XP"
 
     do i = 0, 2
-        msg = "EVAL: CRRA utility (2 points), order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, SCIPY_TEST7(:,i) , atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST7(:,i) , atol=TOL))) &
+            error stop "PCHIP check failed: CRRA utility (2 points)"
     end do
 
     ! Test 8: Test scalar interface using same setup as in test 7.
@@ -383,32 +340,27 @@ subroutine test_interp (tests)
     do j = 1, size(yp)
         call interp_pchip_eval (xp, coef, xp(j), yp_ok(j), status=status)
     end do
-    msg = 'EVAL (scalar): CRRA utility (2 points), check interpolated values at XP'
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yp, yp_ok, atol=TOL), msg)
+    if (.not. (status == NF_STATUS_OK .and. all_close (yp, yp_ok, atol=TOL))) &
+        error stop "EVAL (scalar): CRRA utility (2 points), check interpolated " // &
+            "values at XP"
 
     do i = 0, 2
-        msg = "EVAL (scalar): CRRA utility (2 points), order=" // str(i, 'i0')
         ! Evaluate using scalar interface
         do j = 1, size(y)
             call interp_pchip_eval (xp, coef, x(j), y(j), order=i, status=status)
         end do
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y, SCIPY_TEST7(:,i) , atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST7(:,i) , &
+            atol=TOL))) &
+            error stop "PCHIP scalar check failed: CRRA utility (2 points)"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
 
 end subroutine
 
+subroutine test_extrap ()
 
-
-subroutine test_extrap (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
     type (status_t) :: status
-    type (str) :: msg
     type (workspace) :: work
     integer :: n, ncoef, np, i
     real (PREC), dimension(:), allocatable :: x, y, xp, yp, coef, y_ok, yp_ok
@@ -427,8 +379,6 @@ subroutine test_extrap (tests)
              2.7803696622d+01, 0.0, -2.7803696622d+01 &
         ], shape=[3,3])
 
-    tc => tests%add_test ('Extrapolation tests')
-
     ! Test 1: linear monotinic function, extrapolation
     np = 10
     n = 5
@@ -438,17 +388,15 @@ subroutine test_extrap (tests)
     call fcn1 (xp, yp, order=0)
     call linspace (x, 0.0_PREC, 15.0_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: linear function")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: linear function"
 
     do i = 0, 2
         call fcn1 (x, y_ok, order=i)
-        msg = "EVAL: Linear function, extrapolate, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status, &
             ext=NF_INTERP_EVAL_EXTRAPOLATE)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-                all_close (y, y_ok, atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, y_ok, atol=TOL))) &
+            error stop "PCHIP check failed: Linear function, extrapolate"
     end do
-
 
     ! Test 2: reuse fitted polynomial from above, replace non-interior points
     ! with const
@@ -464,13 +412,11 @@ subroutine test_extrap (tests)
             y_ok = left
         end where
 
-        msg = "EVAL: Linear function, return const, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status, &
             ext=NF_INTERP_EVAL_CONST, left=left, right=right)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-                all_close (y, y_ok, atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, y_ok, atol=TOL))) &
+            error stop "PCHIP check failed: Linear function, return const"
     end do
-
 
     ! Test 3:  reuse fitted polynomial from above, replace non-interior points
     ! with boundary values
@@ -484,24 +430,21 @@ subroutine test_extrap (tests)
             y_ok = yp_ok(1)
         end where
 
-        msg = "EVAL: Linear function, use boundary, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status, &
             ext=NF_INTERP_EVAL_BOUNDARY)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-                all_close (y, y_ok, atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, y_ok, atol=TOL))) &
+            error stop "PCHIP check failed: Linear function, use boundary"
     end do
-
 
     ! Test 4: reuse fitted polynomial from above, raise error on non-interior
     do i = 0, 2
-        msg = "EVAL: Linear function, raise error, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status, &
             ext=NF_INTERP_EVAL_ERROR)
-        call tc%assert_true (status == NF_STATUS_BOUNDS_ERROR, msg)
+        if (.not. (status == NF_STATUS_BOUNDS_ERROR)) &
+            error stop "PCHIP check failed: Linear function, raise error"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
-
 
     ! Test 5: quadratic function
     np = 10
@@ -512,18 +455,17 @@ subroutine test_extrap (tests)
     call fcn3 (xp, yp, order=0)
     call linspace (x, -2.0_PREC, 2.0_PREC)
     call interp_pchip_fit (xp, yp, coef, work=work, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: f(x) = x^2")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = x^2"
 
     do i = 0, 2
-        msg = "EVAL: p(x) ~ x^2, extrapolate, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status, &
             ext=NF_INTERP_EVAL_EXTRAPOLATE)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-                all_close (y, SCIPY_TEST5(:,i), atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST5(:,i), &
+            atol=TOL))) &
+            error stop "PCHIP check failed: p(x) ~ x^2, extrapolate"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
-
 
     ! Test 6: cubic function
     np = 10
@@ -534,20 +476,18 @@ subroutine test_extrap (tests)
     call fcn5 (xp, yp, order=0)
     call linspace (x, -3.0_PREC, 3.0_PREC)
     call interp_pchip_fit (xp, yp, coef, work=work, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "FIT: f(x) = 2(x^3 - x)")
+    if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = 2(x^3 - x)"
 
     do i = 0, 2
-        msg = "EVAL: p(x) ~ 2(x^3 - x), extrapolate, order=" // str(i, 'i0')
         call interp_pchip_eval (xp, coef, x, y, order=i, status=status, &
             ext=NF_INTERP_EVAL_EXTRAPOLATE)
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-                all_close (y, SCIPY_TEST6(:,i), atol=TOL), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y, SCIPY_TEST6(:,i), atol=TOL))) &
+            error stop "PCHIP check failed: p(x) ~ 2(x^3 - x), extrapolate"
     end do
 
     deallocate (xp, yp, yp_ok, coef, x, y, y_ok)
 
 end subroutine
-
 
 elemental subroutine fcn1 (x, y, order)
     real (PREC), intent(in) :: x
@@ -643,6 +583,5 @@ elemental subroutine fcn6 (x, y, order)
         y = x ** (-1.0 - SIGMA) / (-SIGMA)
     end select
 end subroutine
-
 
 end

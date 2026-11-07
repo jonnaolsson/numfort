@@ -14,57 +14,41 @@ program test_stats_lm
 
     use blas95, only: BLAS95_GEMM => GEMM, BLAS95_GEMV => GEMV
 
-    use fcore_testing
-    use fcore_strings
-
     implicit none
 
     integer, parameter :: PREC = real64
 
     call test_all ()
 
-
     contains
-
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_OLS_1d_args ()
+    call test_OLS_2d_args ()
+    call test_OLS_1d ()
+    call test_OLS_2d ()
+    call test_OLS_fit_equiv ()
 
-    call tests%set_label ("numfort_stats_lm unit tests")
+    call test_predict_equiv_1d ()
+    call test_predict_equiv_2d ()
 
-    call test_OLS_1d_args (tests)
-    call test_OLS_2d_args (tests)
-    call test_OLS_1d (tests)
-    call test_OLS_2d (tests)
-    call test_OLS_fit_equiv (tests)
+    call test_WLS ()
 
-    call test_predict_equiv_1d (tests)
-    call test_predict_equiv_2d (tests)
+    call test_pcr_equiv_1d ()
+    call test_pcr_equiv_2d ()
 
-    call test_WLS (tests)
+    call test_pcr_ols_equiv_1d ()
+    call test_pcr_ols_equiv_2d ()
 
-    call test_pcr_equiv_1d (tests)
-    call test_pcr_equiv_2d (tests)
-
-    call test_pcr_ols_equiv_1d (tests)
-    call test_pcr_ols_equiv_2d (tests)
-
-    call test_pcr_masked (tests)
-    call test_pcr_masked_const (tests)
-    call test_pcr_cv_masked (tests)
-
-    call tests%print ()
+    call test_pcr_masked ()
+    call test_pcr_masked_const ()
+    call test_pcr_cv_masked ()
 
 end subroutine
 
-
-
-subroutine test_OLS_1d_args (tests)
+subroutine test_OLS_1d_args ()
     !*  Unit tests for OLS argument checking
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x
     real (PREC), dimension(:), allocatable :: y
@@ -73,8 +57,6 @@ subroutine test_OLS_1d_args (tests)
     integer :: nrhs, nobs, ncoefs
     type (lm_config) :: conf
     type (status_t) :: status
-
-    tc => tests%add_test ("OLS[1d] argument checking")
 
     ! === incompatible X, Y arguments ===
     nrhs = 3
@@ -85,8 +67,8 @@ subroutine test_OLS_1d_args (tests)
 
     status = NF_STATUS_UNDEFINED
     call ols (x=x, y=y, coefs=beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, Y"
 
     deallocate (y, x, beta)
 
@@ -100,8 +82,8 @@ subroutine test_OLS_1d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config(trans_x=.true.)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, Y"
 
     deallocate (x, y, beta)
 
@@ -114,8 +96,8 @@ subroutine test_OLS_1d_args (tests)
 
     status = NF_STATUS_UNDEFINED
     call ols (x=x, y=y, coefs=beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, COEFS"
 
     deallocate (x, y, beta)
 
@@ -130,8 +112,8 @@ subroutine test_OLS_1d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config(trans_x=.true.)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, COEFS"
 
     deallocate (x, y, beta)
 
@@ -144,8 +126,8 @@ subroutine test_OLS_1d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config(add_intercept=.false.)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, COEFS with ADD_INTERCEPT=.FALSE.")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, COEFS with ADD_INTERCEPT=.FALSE."
 
     deallocate (x, y, beta)
 
@@ -158,8 +140,7 @@ subroutine test_OLS_1d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config(add_intercept=.true.)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "NOBS < NCOEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "NOBS < NCOEFS"
 
     deallocate (x, y, beta)
 
@@ -172,19 +153,14 @@ subroutine test_OLS_1d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config(rcond=-0.1_PREC)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid RCOND")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid RCOND"
 
     deallocate (x, y, beta)
 
 end subroutine
 
-
-subroutine test_OLS_2d_args (tests)
+subroutine test_OLS_2d_args ()
     !*  Unit tests for OLS argument checking
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x, y
     real (PREC), dimension(:,:), allocatable :: beta
@@ -192,8 +168,6 @@ subroutine test_OLS_2d_args (tests)
     integer :: nrhs, nlhs, nobs, ncoefs
     type (lm_config) :: conf
     type (status_t) :: status
-
-    tc => tests%add_test ("OLS[2d] argument checking")
 
     ! === incompatible X, Y arguments ===
     nrhs = 3
@@ -205,8 +179,8 @@ subroutine test_OLS_2d_args (tests)
 
     status = NF_STATUS_UNDEFINED
     call ols (x=x, y=y, coefs=beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, Y"
 
     deallocate (x, y, beta)
 
@@ -221,8 +195,8 @@ subroutine test_OLS_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config (trans_x=.true.)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, Y"
 
     deallocate (x, y, beta)
 
@@ -236,8 +210,8 @@ subroutine test_OLS_2d_args (tests)
 
     status = NF_STATUS_UNDEFINED
     call ols (x=x, y=y, coefs=beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, COEFS"
 
     deallocate (x, y, beta)
 
@@ -252,8 +226,8 @@ subroutine test_OLS_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config (trans_x=.true.)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, COEFS"
 
     deallocate (x, y, beta)
 
@@ -267,8 +241,8 @@ subroutine test_OLS_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config (add_intercept=.false.)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, COEFS with ADD_INTERCEPT=.FALSE.")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, COEFS with ADD_INTERCEPT=.FALSE."
 
     deallocate (x, y, beta)
 
@@ -281,8 +255,8 @@ subroutine test_OLS_2d_args (tests)
 
     status = NF_STATUS_UNDEFINED
     call ols (x=x, y=y, coefs=beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays Y, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays Y, COEFS"
 
     deallocate (x, y, beta)
 
@@ -295,8 +269,7 @@ subroutine test_OLS_2d_args (tests)
 
     status = NF_STATUS_UNDEFINED
     call ols (x=x, y=y, coefs=beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "NOBS < NCOEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "NOBS < NCOEFS"
 
     deallocate (x, y, beta)
 
@@ -310,34 +283,26 @@ subroutine test_OLS_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config (rcond=-1.0_PREC)
     call ols (conf, x, y, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid RCOND")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid RCOND"
 
     deallocate (x, y, beta)
 
 end subroutine
 
-
-
-subroutine test_OLS_2d (tests)
+subroutine test_OLS_2d ()
     !*  Unit tests for various OLS regression problems using the 2d API
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x, y, beta, beta_ok, work
     integer :: nrhs, nlhs, ncoefs, nobs
     integer :: i
     integer :: rank
-    real (PREC), parameter :: RTOL = 1.0e-4_PREC, ATOL=1.0e-12_PREC
+    real (PREC), parameter :: Rtol=1.0e-4_PREC, ATOL=1.0e-12_PREC
         ! Arguments for ALL_CLOSE()
     real (PREC) :: rsq
     logical :: all_ok, values_ok
     type (lm_config) :: conf
     type (lm_result), allocatable :: lm
     type (status_t) :: status
-
-    tc => tests%add_test ('OLS[2d] unit tests')
 
     call set_seed (123)
 
@@ -358,9 +323,9 @@ subroutine test_OLS_2d (tests)
     allocate (lm)
     conf = lm_config (add_intercept=.false.)
     call ols (conf, x, y, beta, rank=rank, res=lm, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=RTOL, atol=ATOL), &
-        'Exactly identified system: estimation')
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=RTOL, &
+        atol=ATOL))) &
+        error stop "Exactly identified system: estimation"
     deallocate (lm)
 
     ! Test without optional COEFS argument
@@ -369,8 +334,8 @@ subroutine test_OLS_2d (tests)
     allocate (lm)
     call ols (conf, x, y, rank=rank, res=lm, status=status)
     values_ok = all_close (lm%coefs_multi, beta_ok, rtol=RTOL, atol=ATOL)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Exactly identified system: estimation w/o COEFS argument')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Exactly identified system: estimation w/o COEFS argument"
 
     deallocate (x, y, beta, beta_ok)
     deallocate (lm)
@@ -393,12 +358,11 @@ subroutine test_OLS_2d (tests)
     status = NF_STATUS_OK
     conf = lm_config (add_intercept=.false.)
     call ols (conf, x, y, beta, rank=rank, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=RTOL, atol=ATOL), &
-        "Underdetermined system")
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=RTOL, &
+        atol=ATOL))) &
+        error stop "Underdetermined system"
 
     deallocate (x, y, beta, beta_ok)
-
 
     ! === overdetermined system with intercept ===
     nrhs = 5
@@ -425,12 +389,11 @@ subroutine test_OLS_2d (tests)
     call ols (conf, x, y, beta, rank=rank, status=status)
     ! Apply less strict check on beta, value of 1.0e-3 does not seem to work
     ! for NLHS=11
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=1.0e-2_PREC, atol=ATOL), &
-        "Underdetermined system, ADD_INTERCEPT=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=&
+        1.0e-2_PREC, atol=ATOL))) &
+        error stop "Underdetermined system, ADD_INTERCEPT=.TRUE."
 
     deallocate (x, y, beta, beta_ok)
-
 
     ! === overdetermined system with intercept, transposed X ===
     nrhs = 3
@@ -449,40 +412,33 @@ subroutine test_OLS_2d (tests)
         y(:,i) = beta_ok(1,i)
     end do
     allocate (work(nrhs,nlhs), source=beta_ok(2:,:))
-    call BLAS95_GEMM (x, work, y, beta=1.0_PREC, transa='T')
+    call BLAS95_GEMM (x, work, y, beta=1.0_PREC, transa="T")
     deallocate (work)
 
     status = NF_STATUS_OK
     conf = lm_config (add_intercept=.true., trans_x=.true.)
     call ols (conf, x, y, beta, rank=rank, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=1.0e-2_PREC, atol=ATOL), &
-        "Underdetermined system, ADD_INTERCEPT=.TRUE., TRANS_X=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=&
+        1.0e-2_PREC, atol=ATOL))) &
+        error stop "Underdetermined system, ADD_INTERCEPT=.TRUE., TRANS_X=.TRUE."
 
     deallocate (x, y, beta, beta_ok)
 
 end subroutine
 
-
-
-subroutine test_OLS_1d (tests)
+subroutine test_OLS_1d ()
     !*  Unit tests for various OLS regression problems using the 1d API
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x
     real (PREC), dimension(:), allocatable :: y, beta, beta_ok, work
     integer :: nrhs, ncoefs, nobs
     integer :: rank
-    real (PREC), parameter :: RTOL = 1.0e-4_PREC, ATOL=1.0e-12_PREC
+    real (PREC), parameter :: Rtol=1.0e-4_PREC, ATOL=1.0e-12_PREC
         ! Arguments for ALL_CLOSE()
     real (PREC) :: rsq
     type (status_t) :: status
     type (lm_config) :: conf
     type (lm_result), allocatable :: lm
-
-    tc => tests%add_test ('OLS[1d] unit tests')
 
     call set_seed (456)
 
@@ -499,9 +455,9 @@ subroutine test_OLS_1d (tests)
     allocate (beta(ncoefs))
     conf = lm_config (add_intercept=.false.)
     call ols (conf, x, y, beta, rank=rank, res=lm, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=RTOL, atol=ATOL), &
-        'Exactly identified system: estimation')
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=RTOL, &
+        atol=ATOL))) &
+        error stop "Exactly identified system: estimation"
 
     ! Test w/o optional COEFS argument, coefs are stored in LM_DATA
     deallocate (lm)
@@ -509,15 +465,15 @@ subroutine test_OLS_1d (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config (add_intercept=.false.)
     call ols (conf, x, y, rank=rank, res=lm, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (lm%coefs, beta_ok, rtol=RTOL, atol=ATOL), &
-        'Exactly identified system: estimation w/o COEFS argument')
+    if (.not. (status == NF_STATUS_OK .and. all_close (lm%coefs, beta_ok, rtol=&
+        RTOL, atol=ATOL))) &
+        error stop "Exactly identified system: estimation w/o COEFS argument"
 
     ! Compute R^2 which must be 1.0 in this case
     status = NF_STATUS_UNDEFINED
     call post_estim (lm, x, y, rsq=rsq, status=status)
-    call tc%assert_true (abs(rsq-1.0_PREC) < 1.0e-12 .and. status == NF_STATUS_OK, &
-        'Exactly identified system: R^2')
+    if (.not. (abs (rsq - 1.0_PREC) < 1.0e-12 .and. status == NF_STATUS_OK)) &
+        error stop "Exactly identified system: R^2"
 
     deallocate (x, y, beta, beta_ok)
 
@@ -538,12 +494,11 @@ subroutine test_OLS_1d (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config (add_intercept=.false.)
     call ols (conf, x, y, beta, rank=rank, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=RTOL, atol=ATOL), &
-        "Overdetermined system")
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=RTOL, &
+        atol=ATOL))) &
+        error stop "Overdetermined system"
 
     deallocate (x, y, beta, beta_ok)
-
 
     ! === overdetermined system with intercept ===
 
@@ -566,12 +521,11 @@ subroutine test_OLS_1d (tests)
     status = NF_STATUS_UNDEFINED
     conf = lm_config (add_intercept=.true.)
     call ols (conf, x, y, beta, rank=rank, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=RTOL, atol=ATOL), &
-        "Overdetermined system, ADD_INTERCEPT=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=RTOL, &
+        atol=ATOL))) &
+        error stop "Overdetermined system, ADD_INTERCEPT=.TRUE."
 
     deallocate (x, y, beta, beta_ok)
-
 
     ! === overdetermined system with intercept, transposed X ===
     nrhs = 2
@@ -587,25 +541,22 @@ subroutine test_OLS_1d (tests)
     ! Create LHS variables
     y(:) = beta_ok(1)
     allocate (work(nrhs), source=beta_ok(2:))
-    call BLAS95_GEMV (x, work, y, beta=1.0_PREC, trans='T')
+    call BLAS95_GEMV (x, work, y, beta=1.0_PREC, trans="T")
     deallocate (work)
 
     status = NF_STATUS_OK
     conf = lm_config (add_intercept=.true., trans_x=.true.)
     call ols (conf, x, y, beta, rank=rank, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (beta, beta_ok, rtol=RTOL, atol=ATOL), &
-        "Overdetermined system, ADD_INTERCEPT=.TRUE., TRANS_X=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. all_close (beta, beta_ok, rtol=RTOL, &
+        atol=ATOL))) &
+        error stop "Overdetermined system, ADD_INTERCEPT=.TRUE., TRANS_X=.TRUE."
 
     deallocate (x, y, beta, beta_ok)
 
 end subroutine
 
-
-
-subroutine test_WLS (tests)
+subroutine test_WLS ()
     !*  Unit tests for weightes LS.
-    class (test_suite) :: tests
 
     integer :: Nrhs, Nobs, Nlhs, Nadd
     real (PREC), dimension(:,:), allocatable :: X, Y, Xex, Yex
@@ -615,12 +566,8 @@ subroutine test_WLS (tests)
     type (lm_config) :: conf
     integer :: i, j
     logical :: values_ok
-    class (test_case), pointer :: tc
-    type (str) :: msg
     type (status_t) :: status
-    real (PREC), parameter :: ATOL = 1.0e-10_PREC, RTOL = 1.0e-10_PREC
-
-    tc => tests%add_test ("Tests for weighted LS")
+    real (PREC), parameter :: Atol=1.0e-10_PREC, Rtol=1.0e-10_PREC
 
     call set_seed (1234)
 
@@ -655,8 +602,8 @@ subroutine test_WLS (tests)
 
     values_ok = all_close (intercept_w, intercept, atol=atol, rtol=rtol)
 
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        'Intercept only, uniform weights vs. no weights')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "Intercept only, uniform weights vs. no weights"
 
     ! Full model
     status = NF_STATUS_UNDEFINED
@@ -672,8 +619,8 @@ subroutine test_WLS (tests)
 
     values_ok = all_close (intercept_w, intercept, atol=atol, rtol=rtol)
 
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        'Full model, uniform weights vs. no weights')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "Full model, uniform weights vs. no weights"
 
     ! --- Expanded vs. weighted sample ---
 
@@ -708,8 +655,8 @@ subroutine test_WLS (tests)
 
     values_ok = all_close (intercept_w, intercept, atol=atol, rtol=rtol)
 
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        'Intercept only, weighted vs. expanded sample')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "Intercept only, weighted vs. expanded sample"
 
     ! Full model
     status = NF_STATUS_UNDEFINED
@@ -725,20 +672,16 @@ subroutine test_WLS (tests)
 
     values_ok = all_close (intercept_w, intercept, atol=atol, rtol=rtol)
 
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        'Full model, weighted vs. expanded sample')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "Full model, weighted vs. expanded sample"
 
 end subroutine
 
-
-
-subroutine test_OLS_fit_equiv (tests)
+subroutine test_OLS_fit_equiv ()
     !*  Unit tests for equivalent formulations of the same LS problem,
     !   with OLS() being called with non-transposed and transposed
     !   input and output data.
-    class (test_suite) :: tests
 
-    type (test_case), pointer :: tc
     type (lm_config) :: conf
     type (lm_result), allocatable :: res
     real (PREC), dimension(:,:), allocatable :: X, X_T, Y, Y_T
@@ -747,10 +690,8 @@ subroutine test_OLS_fit_equiv (tests)
     integer :: Nobs, Nrhs, Nconst, Ncoefs, Nlhs
     type (status_t) :: status
     logical :: values_ok
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol = 1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     integer :: jlhs
-
-    tc => tests%add_test ('OLS fitting: equivalent problems')
 
     call set_seed (1234)
 
@@ -795,8 +736,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept(1), intercept_true(1), atol=atol, rtol=rtol) &
         .and. all_close (res%coefs, coefs_true(:,1), atol=atol, rtol=rtol) &
         .and. all_close (res%intercept, intercept_true(1), atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.FALSE., no intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.FALSE., no intercept in coefs"
 
     deallocate (res)
 
@@ -814,8 +755,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept(1), intercept_true(1), atol=atol, rtol=rtol) &
         .and. all_close (res%coefs, coefs_true(:,1), atol=atol, rtol=rtol) &
         .and. all_close (res%intercept, intercept_true(1), atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.TRUE., no intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.TRUE., no intercept in coefs"
 
     deallocate (res)
     deallocate (coefs, intercept)
@@ -837,8 +778,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept(1), intercept_true(jlhs), atol=atol, rtol=rtol) &
         .and. all_close (res%coefs, coefs_true(:,jlhs), atol=atol, rtol=rtol) &
         .and. all_close (res%intercept, intercept_true(jlhs), atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.FALSE., intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.FALSE., intercept in coefs"
 
     deallocate (res)
 
@@ -857,8 +798,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept(1), intercept_true(jlhs), atol=atol, rtol=rtol) &
         .and. all_close (res%coefs, coefs_true(:,jlhs), atol=atol, rtol=rtol) &
         .and. all_close (res%intercept, intercept_true(jlhs), atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.TRUE., intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.TRUE., intercept in coefs"
 
     deallocate (res)
     deallocate (coefs, intercept)
@@ -877,8 +818,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d API: TRANS_X=.FALSE., no intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d API: TRANS_X=.FALSE., no intercept in coefs"
 
     deallocate (res)
 
@@ -896,8 +837,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.TRUE., no intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.TRUE., no intercept in coefs"
 
     deallocate (res)
 
@@ -915,8 +856,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_Y=.TRUE., no intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_Y=.TRUE., no intercept in coefs"
 
     deallocate (res)
 
@@ -934,12 +875,11 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.TRUE., TRANS_Y=.TRUE., no intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.TRUE., TRANS_Y=.TRUE., no intercept in coefs"
 
     deallocate (res)
     deallocate (coefs, intercept)
-
 
     ! trans_coefs = .true.
     allocate (coefs_T(Nlhs,Nrhs), source=huge(0.0_PREC))
@@ -954,8 +894,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d API: TRANS_COEFS=.TRUE., no intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d API: TRANS_COEFS=.TRUE., no intercept in coefs"
 
     deallocate (coefs_T, intercept)
     deallocate (res)
@@ -977,8 +917,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.FALSE., intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.FALSE., intercept in coefs"
 
     deallocate (res)
 
@@ -997,8 +937,8 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.TRUE., intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.TRUE., intercept in coefs"
 
     deallocate (res)
 
@@ -1017,11 +957,10 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_Y=.TRUE., intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_Y=.TRUE., intercept in coefs"
 
     deallocate (res)
-
 
     ! trans_x = .true., trans_y = .true.
     coefs(:,:) = huge(0.0_PREC)
@@ -1038,12 +977,11 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_X=.TRUE., TRANS_Y=.TRUE., intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_X=.TRUE., TRANS_Y=.TRUE., intercept in coefs"
 
     deallocate (res)
     deallocate (coefs, intercept)
-
 
     ! trans_coefs = .true.
     Nconst = 1
@@ -1061,22 +999,18 @@ subroutine test_OLS_fit_equiv (tests)
         .and. all_close (intercept, intercept_true, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_true, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: TRANS_COEFS=.TRUE., intercept in coefs')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: TRANS_COEFS=.TRUE., intercept in coefs"
 
     deallocate (coefs_T, intercept)
     deallocate (res)
 
 end subroutine
 
-
-
-subroutine test_predict_equiv_1d (tests)
+subroutine test_predict_equiv_1d ()
     !*  Test equivalent calls to PREDICT that use transposed variations of
     !   input and output data
-    class (test_suite) :: tests
 
-    type (test_case), pointer :: tc
     type (lm_config) :: conf
     type (lm_result) :: res
     real (PREC), dimension(:,:), allocatable :: X, Xpred, Xpred_T
@@ -1088,11 +1022,9 @@ subroutine test_predict_equiv_1d (tests)
     integer :: Nobs, Nrhs, Nconst, Ncoefs, Nlhs, Nobs_pred
     type (status_t) :: status
     logical :: values_ok
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol = 1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     integer :: jlhs
     logical :: trans_x, trans_y, trans_coefs
-
-    tc => tests%add_test ('PREDICT[1d]: equivalent problems')
 
     call set_seed (45678)
 
@@ -1148,8 +1080,7 @@ subroutine test_predict_equiv_1d (tests)
     Ypred(:) = huge(0.0_PREC)
     call predict (Xpred, coefs, Ypred, intercept, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) error stop "TRANS_X=.FALSE."
 
     ! trans_x = .false., called via PREDICT(LM_RESULT,...)
     status = NF_STATUS_UNDEFINED
@@ -1157,8 +1088,8 @@ subroutine test_predict_equiv_1d (tests)
     Ypred(:) = huge(0.0_PREC)
     call predict (res, Xpred, Ypred, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.FALSE., using LM_RESULT')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "TRANS_X=.FALSE., using LM_RESULT"
 
     ! trans_x = .false., extended COEFS, INTERCEPT present
     status = NF_STATUS_UNDEFINED
@@ -1167,8 +1098,8 @@ subroutine test_predict_equiv_1d (tests)
     call predict (Xpred, coefs_intercept, Ypred, &
         intercept=intercept, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.FALSE., extended COEFS, INTERCEPT present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "TRANS_X=.FALSE., extended COEFS, INTERCEPT present"
 
     ! trans_x = .false., extended COEFS, INTERCEPT not present
     status = NF_STATUS_UNDEFINED
@@ -1176,8 +1107,8 @@ subroutine test_predict_equiv_1d (tests)
     Ypred(:) = huge(0.0_PREC)
     call predict (Xpred, coefs_intercept, Ypred, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.FALSE., extended COEFS')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "TRANS_X=.FALSE., extended COEFS"
 
     ! trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1185,8 +1116,7 @@ subroutine test_predict_equiv_1d (tests)
     Ypred(:) = huge(0.0_PREC)
     call predict (Xpred_T, coefs, Ypred, intercept, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) error stop "TRANS_X=.FALSE."
 
     ! trans_x = .true., using LM_RESULT
     status = NF_STATUS_UNDEFINED
@@ -1194,8 +1124,8 @@ subroutine test_predict_equiv_1d (tests)
     Ypred(:) = huge(0.0_PREC)
     call predict (res, Xpred_T, Ypred, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.FALSE., using LM_RESULT')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "TRANS_X=.FALSE., using LM_RESULT"
 
     ! trans_x = .true., extended COEFS, INTERCEPT present
     status = NF_STATUS_UNDEFINED
@@ -1204,8 +1134,8 @@ subroutine test_predict_equiv_1d (tests)
     call predict (Xpred_T, coefs_intercept, Ypred, &
         intercept=intercept, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.TRUE., extended COEFS, INTERCEPT present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "TRANS_X=.TRUE., extended COEFS, INTERCEPT present"
 
     ! trans_x = .true., extended COEFS, INTERCEPT not present
     status = NF_STATUS_UNDEFINED
@@ -1213,19 +1143,15 @@ subroutine test_predict_equiv_1d (tests)
     Ypred(:) = huge(0.0_PREC)
     call predict (Xpred_T, coefs_intercept, Ypred, trans_x=trans_x, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'TRANS_X=.TRUE., extended COEFS')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "TRANS_X=.TRUE., extended COEFS"
 
 end subroutine
 
-
-
-subroutine test_predict_equiv_2d (tests)
+subroutine test_predict_equiv_2d ()
     !*  Test equivalent calls to PREDICT that use transposed variations of
     !   input and output data
-    class (test_suite) :: tests
 
-    type (test_case), pointer :: tc
     type (lm_config) :: conf
     type (lm_result) :: res
     real (PREC), dimension(:,:), allocatable :: X, Xpred, Xpred_T
@@ -1237,10 +1163,8 @@ subroutine test_predict_equiv_2d (tests)
     integer :: Nobs, Nrhs, Nconst, Ncoefs, Nlhs, Nobs_pred
     type (status_t) :: status
     logical :: values_ok
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol = 1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     logical :: trans_x, trans_y, trans_coefs
-
-    tc => tests%add_test ('PREDICT[2d]: equivalent problems')
 
     call set_seed (7890)
 
@@ -1300,7 +1224,6 @@ subroutine test_predict_equiv_2d (tests)
     ! Arrays where PREDICT writes its results
     allocate (Ypred(Nobs_pred,Nlhs), Ypred_T(Nlhs,Nobs_pred))
 
-
     ! --- Tests using LM_RESULT ---
 
     ! trans_x = .false.
@@ -1310,8 +1233,8 @@ subroutine test_predict_equiv_2d (tests)
     Ypred(:,:) = huge(0.0_PREC)
     call predict (res, Xpred, Ypred, trans_x=trans_x, trans_y=trans_y, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'LM_RESULT: TRANS_X=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "LM_RESULT: TRANS_X=.FALSE."
 
     ! trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1320,8 +1243,8 @@ subroutine test_predict_equiv_2d (tests)
     Ypred(:,:) = huge(0.0_PREC)
     call predict (res, Xpred_T, Ypred, trans_x=trans_x, trans_y=trans_y, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'LM_RESULT: TRANS_X=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "LM_RESULT: TRANS_X=.TRUE."
 
     ! trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1330,8 +1253,8 @@ subroutine test_predict_equiv_2d (tests)
     Ypred(:,:) = huge(0.0_PREC)
     call predict (res, Xpred, Ypred_T, trans_x=trans_x, trans_y=trans_y, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'LM_RESULT: TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "LM_RESULT: TRANS_Y=.TRUE."
 
     ! trans_x = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1340,8 +1263,8 @@ subroutine test_predict_equiv_2d (tests)
     Ypred(:,:) = huge(0.0_PREC)
     call predict (res, Xpred_T, Ypred_T, trans_x=trans_x, trans_y=trans_y, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'LM_RESULT: TRANS_X=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "LM_RESULT: TRANS_X=.TRUE., TRANS_Y=.TRUE."
 
     ! --- Test using COEFS and INTERCEPT ---
 
@@ -1354,8 +1277,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_X=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_X=.FALSE."
 
     ! trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1366,8 +1289,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_X=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_X=.TRUE."
 
     ! trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1378,8 +1301,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_Y=.TRUE."
 
     ! trans_x = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1390,8 +1313,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_X=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_X=.TRUE., TRANS_Y=.TRUE."
 
     ! trans_coefs = .true.
     status = NF_STATUS_UNDEFINED
@@ -1402,8 +1325,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_T, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_COEFS=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_COEFS=.TRUE."
 
     ! trans_coefs = .true., trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1414,8 +1337,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_T, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE."
 
     ! trans_coefs = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1426,8 +1349,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_T, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_COEFS=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_COEFS=.TRUE., TRANS_Y=.TRUE."
 
     ! trans_coefs = .true., trans_x = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1438,9 +1361,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_T, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE., TRANS_Y=.TRUE.')
-
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE., TRANS_Y=.TRUE."
 
     ! --- Extended COEFS, INTERCEPT present ---
 
@@ -1453,8 +1375,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_X=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_X=.FALSE."
 
     ! trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1465,8 +1387,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_X=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_X=.TRUE."
 
     ! trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1477,8 +1399,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_Y=.TRUE."
 
     ! trans_x = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1489,8 +1411,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_X=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_X=.TRUE., TRANS_Y=.TRUE."
 
     ! trans_coefs = .true.
     status = NF_STATUS_UNDEFINED
@@ -1501,8 +1423,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept_T, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE."
 
     ! trans_coefs = .true., trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1513,8 +1435,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept_T, Ypred, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE., TRANS_X=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE., TRANS_X=.TRUE."
 
     ! trans_coefs = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1525,8 +1447,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept_T, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE., TRANS_Y=.TRUE."
 
     ! trans_coefs = .true., trans_x = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1537,8 +1459,9 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept_T, Ypred_T, intercept, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE., TRANS_X=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Ext. COEFS, INTERCEPT: TRANS_COEFS=.TRUE., TRANS_X=.TRUE., " // &
+            "TRANS_Y=.TRUE."
 
     ! --- Extended COEFS, INTERCEPT not present ---
 
@@ -1551,8 +1474,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept, Ypred, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_X=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_X=.FALSE."
 
     ! trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1563,8 +1486,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept, Ypred, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_X=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_X=.TRUE."
 
     ! trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1575,8 +1498,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept, Ypred_T, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_Y=.TRUE."
 
     ! trans_x = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1587,8 +1510,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept, Ypred_T, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_X=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_X=.TRUE., TRANS_Y=.TRUE."
 
     ! trans_coefs = .true.
     status = NF_STATUS_UNDEFINED
@@ -1599,8 +1522,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept_T, Ypred, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_COEFS=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_COEFS=.TRUE."
 
     ! trans_coefs = .true., trans_x = .true.
     status = NF_STATUS_UNDEFINED
@@ -1611,8 +1534,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept_T, Ypred, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (Ypred, Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE."
 
     ! trans_coefs = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1623,8 +1546,8 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred, coefs_intercept_T, Ypred_T, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_COEFS=.TRUE., TRANS_Y=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_COEFS=.TRUE., TRANS_Y=.TRUE."
 
     ! trans_coefs = .true., trans_x = .true., trans_y = .true.
     status = NF_STATUS_UNDEFINED
@@ -1635,19 +1558,15 @@ subroutine test_predict_equiv_2d (tests)
     call predict (Xpred_T, coefs_intercept_T, Ypred_T, trans_x=trans_x, &
         trans_y=trans_y, trans_coefs=trans_coefs, status=status)
     values_ok = all_close (transpose(Ypred_T), Ypred_true, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Extended COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE., TRANS_Y=.TRUE.')
-
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Extended COEFS: TRANS_COEFS=.TRUE., TRANS_X=.TRUE., " // &
+            "TRANS_Y=.TRUE."
 
 end subroutine
 
-
-
-subroutine test_pcr_ols_equiv_1d (tests)
+subroutine test_pcr_ols_equiv_1d ()
     !*  Test models where OLS and PCR yield equivalent results
-    class (test_suite) :: tests
 
-    type (test_case), pointer :: tc
     type (lm_config) :: conf_pcr, conf_ols
     type (lm_result) :: res_ols, res_pcr
     real (PREC), dimension(:,:), allocatable :: X
@@ -1657,12 +1576,9 @@ subroutine test_pcr_ols_equiv_1d (tests)
     real (PREC) ::  intercept_true, intercept_ols, intercept_pcr
     integer :: Nrhs, Nconst, Nobs
     type (status_t) :: status
-    type (str) :: msg
     logical :: values_ok
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol = 1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     integer :: i
-
-    tc => tests%add_test ('PCR-OLS[1d]: equivalent problems')
 
     call set_seed (678)
 
@@ -1682,16 +1598,16 @@ subroutine test_pcr_ols_equiv_1d (tests)
     call pcr (X=X, Y=Y, res=res_pcr, status=status)
 
     values_ok = all_close (res_pcr%intercept, res_ols%intercept, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant only, RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant only, RES present"
 
     ! Weighted
     call ols (X=X, Y=Y, weights=weights, res=res_ols, status=status)
     call pcr (X=X, Y=Y, weights=weights, res=res_pcr, status=status)
 
     values_ok = all_close (res_pcr%intercept, res_ols%intercept, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant only, weighted, RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant only, weighted, RES present"
 
     deallocate (X, Y, weights)
 
@@ -1718,8 +1634,8 @@ subroutine test_pcr_ols_equiv_1d (tests)
 
         values_ok = all_close (res_pcr%intercept, res_ols%intercept, atol=atol, rtol=rtol) &
             .and. all_close (res_pcr%coefs, res_ols%coefs, atol=atol, rtol=rtol)
-        msg = 'Nrhs = ' // str(Nrhs) // '; RES present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS through the result object"
 
         ! Test with weights
         call lm_result_reset (res_ols)
@@ -1730,8 +1646,8 @@ subroutine test_pcr_ols_equiv_1d (tests)
 
         values_ok = all_close (res_pcr%intercept, res_ols%intercept, atol=atol, rtol=rtol) &
             .and. all_close (res_pcr%coefs, res_ols%coefs, atol=atol, rtol=rtol)
-        msg = 'Weighted; Nrhs = ' // str(Nrhs) // '; RES present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "Weighted PCR disagrees with OLS through the result object"
 
         ! Check with COEFS, INTERCEPT arguments
         call cond_alloc (coefs_ols, Nrhs)
@@ -1747,8 +1663,8 @@ subroutine test_pcr_ols_equiv_1d (tests)
 
         values_ok = all_close (intercept_pcr, intercept_ols, atol=atol, rtol=rtol) &
             .and. all_close (coefs_pcr, coefs_ols)
-        msg = 'Nrhs = ' // str(Nrhs) // '; COEFS, INTERCEPT present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS using coefficients and intercept"
 
         ! Check with extended COEFS, INTERCEPT arguments
         Nconst = 1
@@ -1764,8 +1680,9 @@ subroutine test_pcr_ols_equiv_1d (tests)
 
         values_ok = all_close (intercept_pcr, intercept_ols, atol=atol, rtol=rtol) &
             .and. all_close (coefs_pcr, coefs_ols)
-        msg = 'Nrhs = ' // str(Nrhs) // '; extended COEFS, INTERCEPT present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS using extended coefficients and " // &
+                "intercept"
 
         ! Check with extended COEFS, no INTERCEPT argument
         Nconst = 1
@@ -1779,8 +1696,8 @@ subroutine test_pcr_ols_equiv_1d (tests)
 
         values_ok = all_close (intercept_pcr, intercept_ols, atol=atol, rtol=rtol) &
             .and. all_close (coefs_pcr, coefs_ols)
-        msg = 'Nrhs = ' // str(Nrhs) // '; extended COEFS, INTERCEPT not present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS using extended coefficients"
 
         ! Check with no ADDED intercept
         call cond_alloc (coefs_ols, Nrhs)
@@ -1794,8 +1711,8 @@ subroutine test_pcr_ols_equiv_1d (tests)
         call pcr (conf_pcr, X=X, y=y, coefs=coefs_pcr, status=status)
 
         values_ok = all_close (coefs_pcr, coefs_ols, atol=atol, rtol=rtol)
-        msg = 'Nrhs = ' // str(Nrhs) // '; no ADDED intercept'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS without an added intercept"
 
         ! Check with no added intercept, but intercept in X
         Nconst = 1
@@ -1813,8 +1730,8 @@ subroutine test_pcr_ols_equiv_1d (tests)
         call pcr (conf_pcr, X=X, y=y, coefs=coefs_pcr, status=status)
 
         values_ok = all_close (coefs_pcr, coefs_ols, atol=atol, rtol=rtol)
-        msg = 'Nrhs = ' // str(Nrhs) // '; intercept included in X'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS with an intercept column"
 
         deallocate (weights)
 
@@ -1822,13 +1739,9 @@ subroutine test_pcr_ols_equiv_1d (tests)
 
 end subroutine
 
-
-
-subroutine test_pcr_ols_equiv_2d (tests)
+subroutine test_pcr_ols_equiv_2d ()
     !*  Test models where OLS and PCR yield equivalent results
-    class (test_suite) :: tests
 
-    type (test_case), pointer :: tc
     type (lm_config) :: conf_pcr, conf_ols
     type (lm_result) :: res_ols, res_pcr
     real (PREC), dimension(:,:), allocatable :: X, Y
@@ -1836,12 +1749,9 @@ subroutine test_pcr_ols_equiv_2d (tests)
     real (PREC), dimension(:), allocatable ::  intercept_true, intercept_ols, intercept_pcr
     integer :: Nobs, Nrhs, Nlhs, Nconst
     type (status_t) :: status
-    type (str) :: msg
     logical :: values_ok
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol = 1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     integer :: i
-
-    tc => tests%add_test ('PCR-OLS[1d]: equivalent problems')
 
     call set_seed (678)
 
@@ -1856,8 +1766,8 @@ subroutine test_pcr_ols_equiv_2d (tests)
     call pcr (X=X, Y=Y, res=res_pcr, status=status)
 
     values_ok = all_close (res_pcr%intercept, res_ols%intercept, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant only, RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant only, RES present"
 
     deallocate (X, Y)
 
@@ -1870,7 +1780,6 @@ subroutine test_pcr_ols_equiv_2d (tests)
         call random_sample (nrhs=Nrhs, nobs=Nobs, Nlhs=Nlhs, X=X, y=y, &
             coefs=coefs_true, intercept=intercept_true, add_intercept=.true., &
             var_error=0.1_PREC, status=status)
-
 
         call cond_alloc (intercept_ols, Nlhs)
         call cond_alloc (intercept_pcr, Nlhs)
@@ -1886,8 +1795,8 @@ subroutine test_pcr_ols_equiv_2d (tests)
         values_ok = all_close (res_pcr%intercept_multi, res_ols%intercept_multi, &
                 atol=atol, rtol=rtol) &
             .and. all_close (res_pcr%coefs_multi, res_ols%coefs_multi, atol=atol, rtol=rtol)
-        msg = 'Nrhs = ' // str(Nrhs) // '; RES present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS through the result object"
 
         ! Check with COEFS, INTERCEPT arguments
         call cond_alloc (coefs_ols, [Nrhs,Nlhs])
@@ -1903,8 +1812,8 @@ subroutine test_pcr_ols_equiv_2d (tests)
 
         values_ok = all_close (intercept_pcr, intercept_ols, atol=atol, rtol=rtol) &
             .and. all_close (coefs_pcr, coefs_ols)
-        msg = 'Nrhs = ' // str(Nrhs) // '; COEFS, INTERCEPT present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS using coefficients and intercept"
 
         ! Check with extended COEFS, INTERCEPT arguments
         Nconst = 1
@@ -1920,8 +1829,9 @@ subroutine test_pcr_ols_equiv_2d (tests)
 
         values_ok = all_close (intercept_pcr, intercept_ols, atol=atol, rtol=rtol) &
             .and. all_close (coefs_pcr, coefs_ols)
-        msg = 'Nrhs = ' // str(Nrhs) // '; extended COEFS, INTERCEPT present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS using extended coefficients and " // &
+                "intercept"
 
         ! Check with extended COEFS, no INTERCEPT argument
         Nconst = 1
@@ -1935,8 +1845,8 @@ subroutine test_pcr_ols_equiv_2d (tests)
 
         values_ok = all_close (intercept_pcr, intercept_ols, atol=atol, rtol=rtol) &
             .and. all_close (coefs_pcr, coefs_ols)
-        msg = 'Nrhs = ' // str(Nrhs) // '; extended COEFS, INTERCEPT not present'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS using extended coefficients"
 
         ! Check with no ADDED intercept
         call cond_alloc (coefs_ols, [Nrhs,Nlhs])
@@ -1950,8 +1860,8 @@ subroutine test_pcr_ols_equiv_2d (tests)
         call pcr (conf_pcr, X=X, y=y, coefs=coefs_pcr, status=status)
 
         values_ok = all_close (coefs_pcr, coefs_ols, atol=atol, rtol=rtol)
-        msg = 'Nrhs = ' // str(Nrhs) // '; no ADDED intercept'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS without an added intercept"
 
         ! Check with no added intercept, but intercept in X
         Nconst = 1
@@ -1970,34 +1880,27 @@ subroutine test_pcr_ols_equiv_2d (tests)
         call pcr (conf_pcr, X=X, y=y, coefs=coefs_pcr, status=status)
 
         values_ok = all_close (coefs_pcr, coefs_ols, atol=atol, rtol=rtol)
-        msg = 'Nrhs = ' // str(Nrhs) // '; intercept included in X'
-        call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "PCR disagrees with OLS with an intercept column"
 
     end do
 
 end subroutine
 
-
-
-subroutine test_pcr_equiv_1d (tests)
+subroutine test_pcr_equiv_1d ()
     !*  Test variations of equivalent calls to PCR
-    class (test_suite) :: tests
 
-    type (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: X, X_T
     real (PREC), dimension(:), allocatable :: coefs, coefs_ok, coefs_true
     real (PREC), dimension(:), allocatable :: coefs_intercept_ok, coefs_intercept
     real (PREC), dimension(:), allocatable :: y
     real (PREC) :: intercept, intercept_ok, intercept_true
     integer :: Nrhs, Nobs, Ncomp
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol=1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     logical :: values_ok
     type (status_t) :: status
     type (lm_result) :: res_ok, res
     type (lm_config) :: conf
-    type (str) :: msg
-
-    tc => tests%add_test ('PCR[1d] equivalence tests')
 
     call set_seed (2345)
 
@@ -2030,9 +1933,9 @@ subroutine test_pcr_equiv_1d (tests)
             values_ok = all_close (coefs, coefs_ok, atol=atol, rtol=rtol) .and. &
                 all_close (intercept, intercept_ok, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; COEFS, INTERCEPT present, TRANS_X=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR coefficients and intercept disagree with " // &
+                    "transposed X"
 
             status = NF_STATUS_UNDEFINED
             call lm_result_reset (res)
@@ -2041,9 +1944,8 @@ subroutine test_pcr_equiv_1d (tests)
             values_ok = all_close (res%coefs, res_ok%coefs, atol=atol, rtol=rtol) .and. &
                 all_close (res%intercept, res_ok%intercept, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; RES present, TRANS_X=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR result disagree with transposed X"
 
             call lm_result_reset (res)
             status = NF_STATUS_UNDEFINED
@@ -2052,21 +1954,16 @@ subroutine test_pcr_equiv_1d (tests)
             values_ok = all_close (coefs_intercept, coefs_intercept_ok, &
                 atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; extended COEFS, TRANS_X=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR extended coefficients disagree with transposed X"
         end do
     end do
 
 end subroutine
 
-
-
-subroutine test_pcr_equiv_2d (tests)
+subroutine test_pcr_equiv_2d ()
     !*  Test variations of equivalent calls to PCR
-    class (test_suite) :: tests
 
-    type (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: X, X_T
     real (PREC), dimension(:,:), allocatable :: coefs, coefs_T, coefs_ok, coefs_true
     real (PREC), dimension(:,:), allocatable :: coefs_intercept_ok, &
@@ -2074,14 +1971,11 @@ subroutine test_pcr_equiv_2d (tests)
     real (PREC), dimension(:,:), allocatable :: Y, Y_T
     real (PREC), dimension(:), allocatable :: intercept, intercept_ok, intercept_true
     integer :: Nrhs, Nobs, Ncomp, Nlhs
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol=1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     logical :: values_ok
     type (status_t) :: status
     type (lm_result) :: res_ok, res
     type (lm_config) :: conf
-    type (str) :: msg
-
-    tc => tests%add_test ('PCR[2d] equivalence tests')
 
     call set_seed (2345)
 
@@ -2125,9 +2019,9 @@ subroutine test_pcr_equiv_2d (tests)
             values_ok = all_close (coefs, coefs_ok, atol=atol, rtol=rtol) .and. &
                 all_close (intercept, intercept_ok, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; COEFS, INTERCEPT present, TRANS_X=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR coefficients and intercept disagree with " // &
+                    "transposed X"
 
             status = NF_STATUS_UNDEFINED
             call lm_result_reset (res)
@@ -2138,9 +2032,8 @@ subroutine test_pcr_equiv_2d (tests)
                 all_close (res%intercept_multi, res_ok%intercept_multi, &
                     atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; RES present, TRANS_X=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR result disagree with transposed X"
 
             call lm_result_reset (res)
             status = NF_STATUS_UNDEFINED
@@ -2149,9 +2042,8 @@ subroutine test_pcr_equiv_2d (tests)
             values_ok = all_close (coefs_intercept, coefs_intercept_ok, &
                 atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; extended COEFS, TRANS_X=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR extended coefficients disagree with transposed X"
 
             ! --- Transpose Y ---
 
@@ -2162,9 +2054,9 @@ subroutine test_pcr_equiv_2d (tests)
             values_ok = all_close (coefs, coefs_ok, atol=atol, rtol=rtol) .and. &
                 all_close (intercept, intercept_ok, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; COEFS, INTERCEPT present, TRANS_Y=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR coefficients and intercept disagree with " // &
+                    "transposed Y"
 
             status = NF_STATUS_UNDEFINED
             call lm_result_reset (res)
@@ -2175,9 +2067,8 @@ subroutine test_pcr_equiv_2d (tests)
                 all_close (res%intercept_multi, res_ok%intercept_multi, &
                     atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; RES present, TRANS_Y=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR result disagree with transposed Y"
 
             call lm_result_reset (res)
             status = NF_STATUS_UNDEFINED
@@ -2186,9 +2077,8 @@ subroutine test_pcr_equiv_2d (tests)
             values_ok = all_close (coefs_intercept, coefs_intercept_ok, &
                 atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; extended COEFS, TRANS_Y=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR extended coefficients disagree with transposed Y"
 
             ! --- Transpose X and Y ---
 
@@ -2202,9 +2092,8 @@ subroutine test_pcr_equiv_2d (tests)
                 all_close (res%intercept_multi, res_ok%intercept_multi, &
                     atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; RES present, TRANS_X=.TRUE., TRANS_Y=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR result disagree with transposed X and Y"
 
             ! --- Transpose COEFS ---
 
@@ -2216,9 +2105,9 @@ subroutine test_pcr_equiv_2d (tests)
                     atol=atol, rtol=rtol) .and. &
                 all_close (intercept, intercept_ok, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; COEFS, INTERCEPT present, TRANS_COEFS=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR coefficients and intercept disagree with " // &
+                    "transposed coefficients"
 
             call lm_result_reset (res)
             status = NF_STATUS_UNDEFINED
@@ -2227,9 +2116,9 @@ subroutine test_pcr_equiv_2d (tests)
             values_ok = all_close (transpose(coefs_intercept_T), &
                 coefs_intercept_ok, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; extended COEFS, TRANS_COEFS=.TRUE.'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR extended coefficients disagree with transposed " // &
+                    "coefficients"
 
             ! --- Transpose X, Y and COEFS ---
 
@@ -2241,9 +2130,9 @@ subroutine test_pcr_equiv_2d (tests)
                 atol=atol, rtol=rtol) .and. &
                 all_close (intercept, intercept_ok, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; COEFS, INTERCEPT present; X, Y and COEFS transposed'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR coefficients and intercept disagree with " // &
+                    "transposed X and Y and coefficients"
 
             call lm_result_reset (res)
             status = NF_STATUS_UNDEFINED
@@ -2252,23 +2141,19 @@ subroutine test_pcr_equiv_2d (tests)
             values_ok = all_close (transpose(coefs_intercept_T), &
                 coefs_intercept_ok, atol=atol, rtol=rtol)
 
-            msg = 'Nrhs = ' // str(Nrhs) // ', Ncomp = ' // str(Ncomp) &
-                // '; extended COEFS; X, Y and COEFS transposed'
-            call tc%assert_true (status == NF_STATUS_OK .and. values_ok, msg)
+            if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+                error stop "PCR extended coefficients disagree with transposed X " // &
+                    "and Y and coefficients"
 
         end do
     end do
 
 end subroutine
 
-
-
-subroutine test_pcr_masked_const (tests)
+subroutine test_pcr_masked_const ()
     !*  TEST_PCR_MASKED_CONST performs unit tests for degenerate intercept-only
     !   PC regressions.
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     type (status_t) :: status
     integer :: Nrhs, Nobs, Nlhs
 
@@ -2276,8 +2161,6 @@ subroutine test_pcr_masked_const (tests)
     real (PREC), dimension(:,:), allocatable :: coefs_true
     real (PREC), dimension(:), allocatable :: intercept_true
     logical, dimension(:,:), allocatable :: mask
-
-    tc => tests%add_test ("Tests for intercept-only masked PCR")
 
     Nobs = 50
     Nlhs = 10
@@ -2293,15 +2176,11 @@ subroutine test_pcr_masked_const (tests)
 
     ! --- Full mask ---
 
-    call test_pcr_masked_runner (tc, X, Y, mask, msg_prefix='Full mask')
-
+    call test_pcr_masked_runner (X, Y, mask)
 
 end subroutine
 
-
-
-subroutine test_pcr_masked (tests)
-    class (test_suite) :: tests
+subroutine test_pcr_masked ()
 
     integer :: Nrhs, Nobs, Nlhs
     real (PREC), dimension(:,:), allocatable :: X, Y
@@ -2309,11 +2188,7 @@ subroutine test_pcr_masked (tests)
     real (PREC), dimension(:), allocatable :: intercept_true, weights, runif
     logical, dimension(:,:), allocatable :: mask
     integer :: i, ifrom, ito
-    class (test_case), pointer :: tc
-    type (str) :: msg
     type (status_t) :: status, status_mask
-
-    tc => tests%add_test ("Tests for masked PCR")
 
     Nobs = 50
     Nlhs = 10
@@ -2335,9 +2210,9 @@ subroutine test_pcr_masked (tests)
     ! --- Full mask ---
 
     ! Unweighted regressions
-    call test_pcr_masked_runner (tc, X, Y, mask, msg_prefix='Full mask, unweighed')
+    call test_pcr_masked_runner (X, Y, mask)
     ! Weighted regression
-    call test_pcr_masked_runner (tc, X, Y, mask, weights, 'Full mask, weighted')
+    call test_pcr_masked_runner (X, Y, mask, weights)
 
     ! --- Unbalanced obs. count ---
 
@@ -2351,9 +2226,9 @@ subroutine test_pcr_masked (tests)
     end do
 
     ! Unweighted regressions
-    call test_pcr_masked_runner (tc, X, Y, mask, msg_prefix='Unbalanced mask, unweighed')
+    call test_pcr_masked_runner (X, Y, mask)
     ! Weighted regression
-    call test_pcr_masked_runner (tc, X, Y, mask, weights, 'Unbalanced mask, weighted')
+    call test_pcr_masked_runner (X, Y, mask, weights)
 
     ! --- Zero obs. for some LHS ---
 
@@ -2362,20 +2237,21 @@ subroutine test_pcr_masked (tests)
     end do
 
     ! Unweighted regressions
-    call test_pcr_masked_runner (tc, X, Y, mask, msg_prefix='LHS with 0 obs, unweighed')
+    call test_pcr_masked_runner (X, Y, mask)
     ! Weighted regression
-    call test_pcr_masked_runner (tc, X, Y, mask, weights, 'LHS with 0 obs, weighted')
+    call test_pcr_masked_runner (X, Y, mask, weights)
 
 end subroutine
 
-
-
-subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
-    class (test_case) :: tc
-    real (PREC), intent(in), dimension(:,:), contiguous :: X, Y
+subroutine test_pcr_masked_runner (X, Y, mask, weights)
+    real (PREC), intent(in), dimension(:,:), contiguous :: X
+        !* Regressor observations.
+    real (PREC), intent(in), dimension(:,:), contiguous :: Y
+        !* Response observations.
     logical, intent(in), dimension(:,:), contiguous :: mask
+        !* Mask selecting valid observations for each response.
     real (PREC), intent(in), dimension(:), contiguous, optional :: weights
-    character (*), intent(in) :: msg_prefix
+        !* Optional observation weights.
 
     integer :: Nrhs, Nobs, Nlhs
     real (PREC), dimension(:,:), allocatable :: X_T, Y_T
@@ -2385,7 +2261,6 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     integer :: ncomp_mask, ncomp, n, i, step
 
     logical :: values_ok
-    type (str) :: msg
     type (status_t) :: status, status_mask
     type (lm_config) :: conf, conf_mask
 
@@ -2420,8 +2295,9 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
 
         values_ok = all_close_mask (coefs_mask, coefs, mask)
 
-        msg = trim(msg_prefix) // ': NCOMP=' // str(n)
-        call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+            error stop "Masked PCR disagrees with unmasked PCR with fixed " // &
+                "component count"
 
         ! Compare with quick-and-dirty masked implementation
         coefs(:,:) = huge(0.0_PREC)
@@ -2431,8 +2307,8 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
         values_ok = all_close (coefs_mask, coefs, atol=1.0e-10_PREC) .and. &
             all_close (intercept_mask, intercept, atol=1.0e-10_PREC)
 
-        msg = trim(msg_prefix) // ': All coefs; NCOMP=' // str(n)
-        call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+            error stop "Masked PCR disagrees with the reference coefficients"
     end do
 
     ! --- Min. variance ---
@@ -2451,8 +2327,8 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
         values_ok = all_close_mask (coefs_mask, coefs, mask) .and. &
             (ncomp == ncomp_mask)
 
-        msg = trim(msg_prefix) // ': Min RHS Var=' // str(conf%var_rhs_min, 'f6.3')
-        call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+            error stop "Masked PCR disagrees with unmasked PCR at minimum variance"
 
         ! Compare with quick-and-dirty masked implementation
         coefs(:,:) = huge(0.0_PREC)
@@ -2462,8 +2338,8 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
         values_ok = all_close (coefs_mask, coefs, atol=1.0e-10_PREC) .and. &
             all_close (intercept_mask, intercept, atol=1.0e-10_PREC)
 
-        msg = trim(msg_prefix) // ': All coefs; NCOMP=' // str(n)
-        call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+        if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+            error stop "Masked PCR disagrees with the reference coefficients"
     end do
 
     ! --- Transposed X ---
@@ -2482,8 +2358,8 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     values_ok = all_close_mask (coefs_mask, coefs, mask) .and. &
         (ncomp == ncomp_mask)
 
-    msg = trim(msg_prefix) // ': TRANS_X=T'
-    call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+    if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+        error stop "Masked PCR with transposed X disagrees with unmasked PCR"
 
     ! Compare with quick-and-dirty masked implementation
     coefs(:,:) = huge(0.0_PREC)
@@ -2493,8 +2369,9 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     values_ok = all_close (coefs_mask, coefs, atol=1.0e-10_PREC) .and. &
         all_close (intercept_mask, intercept, atol=1.0e-10_PREC)
 
-    msg = trim(msg_prefix) // ': All coefs; TRANS_X=T'
-    call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+    if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+        error stop "Masked PCR with transposed X disagrees with reference " // &
+            "coefficients"
 
     ! --- Transposed Y ---
 
@@ -2512,8 +2389,8 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     values_ok = all_close_mask (coefs_mask, coefs, mask) .and. &
         (ncomp == ncomp_mask)
 
-    msg = trim(msg_prefix) // ': TRANS_Y=T'
-    call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+    if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+        error stop "Masked PCR with transposed Y disagrees with unmasked PCR"
 
     ! Compare with quick-and-dirty masked implementation
     coefs(:,:) = huge(0.0_PREC)
@@ -2523,9 +2400,9 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     values_ok = all_close (coefs_mask, coefs, atol=1.0e-10_PREC) .and. &
         all_close (intercept_mask, intercept, atol=1.0e-10_PREC)
 
-    msg = trim(msg_prefix) // ': All coefs; TRANS_Y=T'
-    call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
-
+    if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+        error stop "Masked PCR with transposed Y disagrees with reference " // &
+            "coefficients"
 
     ! --- Transposed X, Y ---
 
@@ -2544,8 +2421,8 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     values_ok = all_close_mask (coefs_mask, coefs, mask) .and. &
         (ncomp == ncomp_mask)
 
-    msg = trim(msg_prefix) // ': TRANS_X=T, TRANS_Y=T'
-    call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+    if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+        error stop "Masked PCR with transposed X and Y disagrees with unmasked PCR"
 
     ! Compare with quick-and-dirty masked implementation
     coefs(:,:) = huge(0.0_PREC)
@@ -2555,8 +2432,9 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     values_ok = all_close (coefs_mask, coefs, atol=1.0e-10_PREC) .and. &
         all_close (intercept_mask, intercept, atol=1.0e-10_PREC)
 
-    msg = trim(msg_prefix) // ': All coefs; TRANS_X=T, TRANS_Y=T'
-    call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
+    if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+        error stop "Masked PCR with transposed X and Y disagrees with reference " // &
+            "coefficients"
 
     ! --- Transposed COEFS ---
 
@@ -2576,25 +2454,23 @@ subroutine test_pcr_masked_runner (tc, X, Y, mask, weights, msg_prefix)
     values_ok = all_close_mask (coefs_mask, coefs, mask) .and. &
         (ncomp == ncomp_mask)
 
-    msg = trim(msg_prefix) // ': TRANS_COEFS=T'
-    call tc%assert_true (status_mask == NF_STATUS_OK .and. values_ok, msg)
-
+    if (.not. (status_mask == NF_STATUS_OK .and. values_ok)) &
+        error stop "Masked PCR with transposed coefficients disagrees with " // &
+            "unmasked PCR"
 
 end subroutine
-
-
 
 subroutine pcr_masked (conf, X, Y, mask, weights, coefs, intercept)
     !*  PCR_MASKED is a quick-and-dirty implementation for masked PCR
     !   which performs PCR separately for each LHS, restricting observations
     !   to those not excluded for the corresponding LHS variable.
     type (lm_config), intent(in) :: conf
-    real (PREC), intent(in), dimension(:,:), contiguous :: X, Y
+    real (PREC), intent(in), dimension(:,:), contiguous :: X
+    real (PREC), intent(in), dimension(:,:), contiguous :: Y
     logical, intent(in), dimension(:,:), contiguous :: mask
     real (PREC), intent(in), dimension(:), contiguous, optional :: weights
     real (PREC), intent(out), dimension(:,:), contiguous :: coefs
     real (PREC), intent(out), dimension(:), contiguous :: intercept
-
 
     real (PREC), dimension(:,:), allocatable :: Xpack
     real (PREC), dimension(:), allocatable :: Ypack
@@ -2633,14 +2509,13 @@ subroutine pcr_masked (conf, X, Y, mask, weights, coefs, intercept)
 
 end subroutine
 
-
 function all_close_mask (actual, desired, mask, trans) result(res)
     real (PREC), intent(in), dimension(:,:), contiguous :: actual, desired
     logical, intent(in), dimension(:,:), contiguous :: mask
     logical, intent(in), optional :: trans
     logical :: res
 
-    real (PREC), parameter :: ATOL = 1.0e-10_PREC, RTOL = 1.0e-8_PREC
+    real (PREC), parameter :: Atol=1.0e-10_PREC, Rtol=1.0e-8_PREC
     logical :: ltrans
     integer :: i
 
@@ -2666,10 +2541,7 @@ function all_close_mask (actual, desired, mask, trans) result(res)
     end if
 end function
 
-
-
-subroutine test_pcr_cv_masked (tests)
-    class (test_suite) :: tests
+subroutine test_pcr_cv_masked ()
 
     integer :: Nrhs, Nobs, Nlhs
     real (PREC), dimension(:,:), allocatable :: X, Y
@@ -2681,12 +2553,8 @@ subroutine test_pcr_cv_masked (tests)
     real (PREC), dimension(:), allocatable :: rmse_lhs, rmse_lhs_mask
     integer, dimension(:), allocatable :: ncomp_lhs, ncomp_lhs_mask
     logical :: values_ok
-    class (test_case), pointer :: tc
-    type (str) :: msg
     type (status_t) :: status, status_mask
     type (lm_config) :: conf
-
-    tc => tests%add_test ("Tests for masked PCR cross-validation")
 
     Nobs = 50
     Nlhs = 10
@@ -2722,8 +2590,8 @@ subroutine test_pcr_cv_masked (tests)
 
     values_ok = (ncomp == ncomp_mask) .and. abs(rmse - rmse_mask) < 1.0e-8_PREC
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "Full mask, unweighted, NFOLDS > NLHS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "Full mask, unweighted, NFOLDS > NLHS"
 
     ! Variant w/o mask, weighted
     ncomp = -1
@@ -2738,8 +2606,8 @@ subroutine test_pcr_cv_masked (tests)
 
     values_ok = (ncomp == ncomp_mask) .and. abs(rmse - rmse_mask) < 1.0e-8_PREC
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "Full mask, weighted, NFOLDS > NLHS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "Full mask, weighted, NFOLDS > NLHS"
 
     ! --- Full mask, NLHS > NFOLDS ---
 
@@ -2758,8 +2626,8 @@ subroutine test_pcr_cv_masked (tests)
 
     values_ok = (ncomp == ncomp_mask) .and. abs(rmse - rmse_mask) < 1.0e-8_PREC
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "Full mask, unweighted, NLHS > NFOLDS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "Full mask, unweighted, NLHS > NFOLDS"
 
     ! Variant w/o mask, weighted
     ncomp = -1
@@ -2774,8 +2642,8 @@ subroutine test_pcr_cv_masked (tests)
 
     values_ok = (ncomp == ncomp_mask) .and. abs(rmse - rmse_mask) < 1.0e-8_PREC
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "Full mask, weighted, NLHS > NFOLDS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "Full mask, weighted, NLHS > NFOLDS"
 
     ! === CVs with separate result for each LHS ===
 
@@ -2802,8 +2670,8 @@ subroutine test_pcr_cv_masked (tests)
     values_ok = all(ncomp_lhs == ncomp_lhs_mask) .and. &
         all_close (rmse_lhs_mask, rmse_lhs, atol=1.0e-10_PREC)
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "By LHS: Full mask, unweighted, NFOLDS > NLHS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "By LHS: Full mask, unweighted, NFOLDS > NLHS"
 
     ! Variant w/o mask, weighted
     ncomp_lhs(:) = -1
@@ -2821,8 +2689,8 @@ subroutine test_pcr_cv_masked (tests)
     values_ok = all(ncomp_lhs == ncomp_lhs_mask) .and. &
         all_close (rmse_lhs_mask, rmse_lhs, atol=1.0e-10_PREC)
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "By LHS: Full mask, weighted, NFOLDS > NLHS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "By LHS: Full mask, weighted, NFOLDS > NLHS"
 
     ! --- Full mask, NLHS > NFOLDS ---
 
@@ -2844,8 +2712,8 @@ subroutine test_pcr_cv_masked (tests)
     values_ok = all(ncomp_lhs == ncomp_lhs_mask) .and. &
         all_close (rmse_lhs_mask, rmse_lhs, atol=1.0e-10_PREC)
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "By LHS: Full mask, unweighted, NLHS > NFOLDS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "By LHS: Full mask, unweighted, NLHS > NFOLDS"
 
     ! Variant w/o mask, weighted
     ncomp_lhs(:) = -1
@@ -2863,10 +2731,8 @@ subroutine test_pcr_cv_masked (tests)
     values_ok = all(ncomp_lhs == ncomp_lhs_mask) .and. &
         all_close (rmse_lhs_mask, rmse_lhs, atol=1.0e-10_PREC)
 
-    call tc%assert_true (values_ok .and. status_mask == NF_STATUS_OK, &
-        "By LHS, Full mask, weighted, NLHS > NFOLDS")
+    if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
+        error stop "By LHS, Full mask, weighted, NLHS > NFOLDS"
 end subroutine
-
-
 
 end

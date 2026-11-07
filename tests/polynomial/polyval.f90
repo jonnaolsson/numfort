@@ -7,10 +7,7 @@ program test_polynomial_polyval
     use numfort_common
     use numfort_common_testing
     use numfort_polynomial, only: polyval, polyder
-    
-    use fcore_testing, only: test_suite, test_case
-    use fcore_strings
-    
+
     implicit none
     
     integer, parameter :: PREC = real64
@@ -18,34 +15,23 @@ program test_polynomial_polyval
     call test_all ()
     
     contains
-    
 
 subroutine test_all ()
-    type (test_suite) :: tests 
-    
-    call tests%set_label ("polyfit unit tests")
-    
-    call test_polyval (tests)
 
-    call tests%print ()
+    call test_polyval ()
 
 end subroutine
 
-
-subroutine test_polyval (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_polyval ()
     
     real (PREC), dimension(:), allocatable :: coefs, xp
     real (PREC) :: x, y, y_exp
-    
-    tc => tests%add_test ("POLYVAL unit tests")
-    
+
     ! Degenerate "polynomial" with empty set of coefficients
     allocate (coefs(0))
     x = 0.0_PREC
     call polyval (coefs, x, y)
-    call tc%assert_true (y==0.0_PREC, "Degenerate polynomial with empty coefs set")
+    if (.not. (y == 0.0_PREC)) error stop "Degenerate polynomial with empty coefs set"
     deallocate (coefs)
 
     ! Constant function, ie. polynomial of degree 0
@@ -53,7 +39,7 @@ subroutine test_polyval (tests)
     x = 0.0_PREC
     y_exp = coefs(1)
     call polyval (coefs, x, y)
-    call tc%assert_true (y==y_exp, "Degree 0 polynomial")
+    if (.not. (y == y_exp)) error stop "Degree 0 polynomial"
     deallocate (coefs)
 
     ! Linear funcdtion,  ie. polynomial of degree 1
@@ -63,7 +49,7 @@ subroutine test_polyval (tests)
     x = 6.789_PREC
     y_exp = coefs(1) + coefs(2) * x
     call polyval (coefs, x, y)
-    call tc%assert_true (all_close (y, y_exp), "Degree 1 polynomial")
+    if (.not. (all_close (y, y_exp))) error stop "Degree 1 polynomial"
     deallocate (coefs)
 
     ! Quadratic function
@@ -73,7 +59,7 @@ subroutine test_polyval (tests)
     call vander (x, xp, increasing=.true.)
     y_exp = dot_product (coefs, xp)
     call polyval (coefs, x, y)
-    call tc%assert_true (all_close (y, y_exp), "Degree 2 polynomial")
+    if (.not. (all_close (y, y_exp))) error stop "Degree 2 polynomial"
     deallocate (coefs, xp)
 
     ! Cubic function
@@ -83,7 +69,7 @@ subroutine test_polyval (tests)
     call vander (x, xp, increasing=.true.)
     y_exp = dot_product (coefs, xp)
     call polyval (coefs, x, y)
-    call tc%assert_true (all_close (y, y_exp), "Degree 3 polynomial")
+    if (.not. (all_close (y, y_exp))) error stop "Degree 3 polynomial"
     deallocate (coefs, xp)
 
     ! Degree 4 polynomial
@@ -93,10 +79,9 @@ subroutine test_polyval (tests)
     call vander (x, xp, increasing=.true.)
     y_exp = dot_product (coefs, xp)
     call polyval (coefs, x, y)
-    call tc%assert_true (all_close (y, y_exp), "Degree 4 polynomial")
+    if (.not. (all_close (y, y_exp))) error stop "Degree 4 polynomial"
     deallocate (coefs, xp)
 
 end subroutine
-
 
 end program

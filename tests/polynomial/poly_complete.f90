@@ -11,9 +11,6 @@ program test_polynomial_poly_complete
     use numfort_core
     use numfort_polynomial
 
-    use fcore_testing, only: test_suite, test_case
-    use fcore_strings
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -22,59 +19,44 @@ program test_polynomial_poly_complete
 
 contains
 
-
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("poly_complete unit tests")
-
-    call test_exponents (tests)
-    call test_basis (tests)
-    call test_basis_jac (tests)
-
-    call tests%print ()
+    call test_exponents ()
+    call test_basis ()
+    call test_basis_jac ()
 
 end subroutine
 
-
-subroutine test_exponents (tests)
+subroutine test_exponents ()
     !*  Unit tests for creating a list of all permutations of exponents
     !   that occur in a complete polynomial of given degree in a given number
     !   of variables.
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     integer :: kmax, k, n, j, ifrom, ito, nterms
     logical :: ok
     integer, dimension(:,:), allocatable :: exponents, exponents_ok
     type (status_t) :: status
-    type (str) :: msg
-
-    tc => tests%add_test ("Exponent-generating routine input checks")
 
     ! Test with invalid arguments
     allocate (exponents(0,0))
 
     status = NF_STATUS_OK
     call polyexponents_complete (-1, 0, exponents, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid dimension argument")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid dimension argument"
 
     status = NF_STATUS_OK
     call polyexponents_complete (0, -1, exponents, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid polynomial degree")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid polynomial degree"
 
     status = NF_STATUS_OK
     call polyexponents_complete (1, 0, exponents, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid EXPONENT array size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Invalid EXPONENT array size"
 
     deallocate (exponents)
 
     ! Test with 1 dimension
     n = 1
-    tc => tests%add_test ("Exponent-generating routine with N=" // str(n))
     kmax = 5
     allocate (exponents(n,kmax+1))
 
@@ -85,15 +67,14 @@ subroutine test_exponents (tests)
         do j = 1, k+1
             ok = ok .and. (exponents(1,j) == (j-1))
         end do
-        msg = 'Testing with K=' // str(k, 'i0')
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, msg)
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial exponents differ from the reference"
     end do
 
     deallocate (exponents)
 
     ! Test with 2 dimensions
     n = 2
-    tc => tests%add_test ("Exponent-generating routine with N=" // str(n))
     kmax = 5
     nterms = poly_complete_get_nterms (n, kmax)
     allocate (exponents(n,nterms), exponents_ok(n,nterms))
@@ -114,16 +95,14 @@ subroutine test_exponents (tests)
 
         ok = exponents_identical (exponents(:,ifrom:ito), exponents_ok(:,ifrom:ito))
 
-        msg = 'Testing with K=' // str(k, 'i0')
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, msg)
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial exponents differ from the reference"
     end do
 
     deallocate (exponents, exponents_ok)
-
 
     ! Test with 3 dimensions
     n = 3
-    tc => tests%add_test ("Exponent-generating routine with N=" // str(n))
     kmax = 5
     nterms = poly_complete_get_nterms (n, kmax)
     allocate (exponents(n,nterms), exponents_ok(n,nterms))
@@ -142,16 +121,14 @@ subroutine test_exponents (tests)
         call get_exponents_alt (n, k, exponents_ok(:,ifrom:ito))
 
         ok = exponents_identical (exponents(:,ifrom:ito), exponents_ok(:,ifrom:ito))
-        msg = 'Testing with K=' // str(k, 'i0')
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, msg)
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial exponents differ from the reference"
     end do
 
     deallocate (exponents, exponents_ok)
-
 
     ! Test with 4 dimensions
     n = 4
-    tc => tests%add_test ("Exponent-generating routine with N=" // str(n))
     kmax = 5
     nterms = poly_complete_get_nterms (n, kmax)
     allocate (exponents(n,nterms), exponents_ok(n,nterms))
@@ -170,16 +147,14 @@ subroutine test_exponents (tests)
         call get_exponents_alt (n, k, exponents_ok(:,ifrom:ito))
 
         ok = exponents_identical (exponents(:,ifrom:ito), exponents_ok(:,ifrom:ito))
-        msg = 'Testing with K=' // str(k, 'i0')
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, msg)
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial exponents differ from the reference"
     end do
 
     deallocate (exponents, exponents_ok)
 
-
     ! Test with 5 dimensions
     n = 5
-    tc => tests%add_test ("Exponent-generating routine with N=" // str(n))
     kmax = 5
     nterms = poly_complete_get_nterms (n, kmax)
     allocate (exponents(n,nterms), exponents_ok(n,nterms))
@@ -198,14 +173,13 @@ subroutine test_exponents (tests)
         call get_exponents_alt (n, k, exponents_ok(:,ifrom:ito))
 
         ok = exponents_identical (exponents(:,ifrom:ito), exponents_ok(:,ifrom:ito))
-        msg = 'Testing with K=' // str(k, 'i0')
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, msg)
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial exponents differ from the reference"
     end do
 
     deallocate (exponents, exponents_ok)
 
 end subroutine
-
 
 subroutine get_exponents_alt (n, k, exponents)
     !*  Alternative algorithm to find all exponent permutations, which
@@ -249,8 +223,6 @@ subroutine get_exponents_alt (n, k, exponents)
 
 end subroutine
 
-
-
 function exponents_identical (xp1, xp2) result(res)
     !*  Verify whether two sets of exponent permutations are identical.
     !
@@ -286,7 +258,6 @@ function exponents_identical (xp1, xp2) result(res)
 
 end function
 
-
 subroutine create_linear_index (xp, idx)
     !*  Map each permutation of exponents to a unique linear index to
     !   establish a sort order for any list of exponent permutations.
@@ -309,13 +280,8 @@ subroutine create_linear_index (xp, idx)
 
 end subroutine
 
-
-
-subroutine test_basis (tests)
+subroutine test_basis ()
     !* Unit tests for complete polynomial basis construction routines
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x, basis, basis_ok
     integer, parameter :: KMAX = 5
@@ -323,34 +289,30 @@ subroutine test_basis (tests)
     type (status_t) :: status
     logical :: ok
 
-
     ! Test input checks
-    tc => tests%add_test ("polybasis_complete input checks")
 
     allocate (x(1,1), basis(1,1))
     status = NF_STATUS_OK
     call polybasis_complete (x, -1, basis, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid polynomial degree")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid polynomial degree"
     deallocate (x, basis)
 
     allocate (x(1,2), basis(1,1))
     status = NF_STATUS_OK
     call polybasis_complete (x, 0, basis, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "BASIS input has too few columns")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "BASIS input has too few columns"
     deallocate (x, basis)
 
     allocate (x(1,1), basis(1,1))
     status = NF_STATUS_OK
     call polybasis_complete (x, 1, basis, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "BASIS input has too few rows")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "BASIS input has too few rows"
     deallocate (x, basis)
 
     ! Test with 1d
     n = 1
-    tc => tests%add_test ("polybasis_complete unit tests for N=" // str(n))
     nx = 10
     allocate (x(n, nx))
     call random_number (x)
@@ -368,18 +330,16 @@ subroutine test_basis (tests)
         end do
 
         ok = all_close (basis, basis_ok, atol=1.0e-10_PREC, rtol=0.0_PREC)
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, &
-            "Basis functions for K=" // str(k))
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial basis differs from the reference"
 
         deallocate (basis, basis_ok)
     end do
 
     deallocate (x)
 
-
     ! Test with 2d
     n = 2
-    tc => tests%add_test ("polybasis_complete unit tests for N=" // str(n))
     nx = 10
     allocate (x(n, nx))
     call random_number (x)
@@ -410,18 +370,16 @@ subroutine test_basis (tests)
         end if
 
         ok = all_close (basis, basis_ok, atol=1.0e-10_PREC, rtol=0.0_PREC)
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, &
-            "Basis functions for K=" // str(k))
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial basis differs from the reference"
 
         deallocate (basis, basis_ok)
     end do
 
     deallocate (x)
 
-
     ! Test with 3d
     n = 3
-    tc => tests%add_test ("polybasis_complete unit tests for N=" // str(n))
     nx = 10
     allocate (x(n, nx))
     call random_number (x)
@@ -462,23 +420,18 @@ subroutine test_basis (tests)
         end if
 
         ok = all_close (basis, basis_ok, atol=1.0e-10_PREC, rtol=0.0_PREC)
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, &
-            "Basis functions for K=" // str(k))
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial basis differs from the reference"
 
         deallocate (basis, basis_ok)
     end do
 
     deallocate (x)
 
-
 end subroutine
 
-
-subroutine test_basis_jac (tests)
+subroutine test_basis_jac ()
     !* Unit tests for complete polynomial basis construction routines
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: jac, jac_ok
     real (PREC), dimension(:), allocatable :: x
@@ -486,34 +439,29 @@ subroutine test_basis_jac (tests)
     type (status_t) :: status
     logical :: ok
 
-
     ! Test input checks
-    tc => tests%add_test ("polybasis_jac_complete input checks")
 
     allocate (x(1), jac(1,1))
     status = NF_STATUS_OK
     call polybasis_jac_complete (x, -1, jac, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid polynomial degree")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid polynomial degree"
     deallocate (x, jac)
 
     allocate (x(2), jac(1,1))
     status = NF_STATUS_OK
     call polybasis_jac_complete (x, 0, jac, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "JAC input has too few columns")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "JAC input has too few columns"
     deallocate (x, jac)
 
     allocate (x(1), jac(1,1))
     status = NF_STATUS_OK
     call polybasis_jac_complete (x, 1, jac, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "JAC input has too few rows")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "JAC input has too few rows"
     deallocate (x, jac)
 
     ! Test with 1d
     n = 1
-    tc => tests%add_test ("polybasis_complete unit tests for N=" // str(n))
     allocate (x(n))
     call random_number (x)
 
@@ -529,18 +477,17 @@ subroutine test_basis_jac (tests)
         end do
 
         ok = all_close (jac, jac_ok, atol=1.0e-10_PREC, rtol=0.0_PREC)
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, &
-            "Basis functions for K=" // str(k))
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial basis derivatives differ from the " // &
+                "reference"
 
         deallocate (jac, jac_ok)
     end do
 
     deallocate (x)
 
-
     ! Test with 2d
     n = 2
-    tc => tests%add_test ("polybasis_complete unit tests for N=" // str(n))
     allocate (x(n))
     call random_number (x)
 
@@ -573,18 +520,16 @@ subroutine test_basis_jac (tests)
         end if
 
         ok = all_close (jac, jac_ok, atol=1.0e-10_PREC, rtol=0.0_PREC)
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, &
-            "Basis functions for K=" // str(k))
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial basis derivatives differ from the reference"
 
         deallocate (jac, jac_ok)
     end do
 
     deallocate (x)
 
-
     ! Test with 3d
     n = 3
-    tc => tests%add_test ("polybasis_complete unit tests for N=" // str(n))
     allocate (x(n))
     call random_number (x)
 
@@ -635,16 +580,14 @@ subroutine test_basis_jac (tests)
         end if
 
         ok = all_close (jac, jac_ok, atol=1.0e-10_PREC, rtol=0.0_PREC)
-        call tc%assert_true (ok .and. status == NF_STATUS_OK, &
-            "Basis functions for K=" // str(k))
+        if (.not. (ok .and. status == NF_STATUS_OK)) &
+            error stop "Complete polynomial basis derivatives differ from the reference"
 
         deallocate (jac, jac_ok)
     end do
 
     deallocate (x)
 
-
 end subroutine
-
 
 end

@@ -3,16 +3,13 @@
 program test_optimize_root_newton
 
     use, intrinsic :: iso_fortran_env
-    
+
     use numfort_core, only : PI_real64, signum
     use numfort_common
     use numfort_common_testing
     use numfort_optimize, only: root_newton, root_halley, root_newton_bisect, &
         optim_result => optim_result_real64, args_data, &
         args_default => args_default_real64, dynamic_cast, cond_alloc
-
-    use fcore_testing, only: test_suite, test_case
-    use fcore_strings
 
     implicit none
 
@@ -36,38 +33,26 @@ program test_optimize_root_newton
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_linear ()
+    call test_quad ()
+    call test_cycles ()
+    call test_halley ()
+    call test_newton_bisect ()
 
-    call tests%set_label ("ROOT_NEWTON unit tests")
-
-    call test_linear (tests)
-    call test_quad (tests)
-    call test_cycles (tests)
-    call test_halley (tests)
-    call test_newton_bisect (tests)
-
-    call tests%print ()
 end subroutine
 
-
-subroutine test_linear (tests)
-    type (test_suite), intent(inout) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_linear ()
 
     real (PREC) :: x, fx
     type (args_default) :: args
     logical, parameter :: NDIFF = .true.
     type (optim_result) :: res
-    real (PREC), parameter :: atol = 1.0d-12, rtol = 0.0
+    real (PREC), parameter :: atol=1.0d-12, rtol=0.0
     real (PREC), parameter :: root_exact = 1.0, zero = 0.0
         !   True root and function value at root
     real (PREC), parameter :: x0 = 1.234
-
-    tc => tests%add_test ("ROOT_NEWTON: Linear function")
 
     allocate (args%rdata(2))
     args%rdata(1) = LINEAR_CONST
@@ -76,65 +61,58 @@ subroutine test_linear (tests)
     x = x0
     call root_newton (fcn_linear, x, NDIFF, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Num. derivative, no ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Num. derivative, no ARGS"
 
     x = x0
     call root_newton (fcn_linear, jac_linear, x, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Separate FCN and JAC, no ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Separate FCN and JAC, no ARGS"
 
     x = x0
     call root_newton (fcn_jac_linear, x, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Joint FCN and JAC, no ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Joint FCN and JAC, no ARGS"
 
     x = x0
     call root_newton (fcn_linear_args, x, args, NDIFF, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Num. derivate + ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Num. derivate + ARGS"
 
     x = x0
     call root_newton (fcn_linear_args, jac_linear_args, x, args, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Separate FCN and JAC + ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Separate FCN and JAC + ARGS"
 
     x = x0
     call root_newton (fcn_jac_linear_args, x, args, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Joint FCN and JAC + ARGS")
-
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Joint FCN and JAC + ARGS"
 
 end subroutine
 
 
-
-subroutine test_quad (tests)
-    type (test_suite), intent(inout) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_quad ()
 
     real (PREC) :: x, fx
     type (args_quad) :: args
     logical, parameter :: NDIFF = .true.
     type (optim_result) :: res
-    real (PREC), parameter :: atol = 1.0d-12, rtol = 0.0
+    real (PREC), parameter :: atol=1.0d-12, rtol=0.0
     real (PREC), parameter :: root_exact = -1.0, zero = 0.0
         !   True root and function value at root
     real (PREC), parameter :: x0 = -2.234d0
-
-    tc => tests%add_test ("ROOT_NEWTON: Quadratic function")
 
     args%root1 = QUAD_ROOT1
     args%root2 = QUAD_ROOT2
@@ -142,78 +120,72 @@ subroutine test_quad (tests)
     x = x0
     call root_newton (fcn_quad, x, NDIFF, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Num. derivative, no ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Num. derivative, no ARGS"
 
     x = x0
     call root_newton (fcn_quad, jac_quad, x, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Separate FCN and JAC, no ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Separate FCN and JAC, no ARGS"
 
     x = x0
     call root_newton (fcn_jac_quad, x, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Joint FCN and JAC, no ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Joint FCN and JAC, no ARGS"
 
     x = x0
     call root_newton (fcn_quad_args, x, args, NDIFF, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Num. derivate + ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Num. derivate + ARGS"
 
     x = x0
     call root_newton (fcn_quad_args, jac_quad_args, x, args, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Separate FCN and JAC + ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Separate FCN and JAC + ARGS"
 
     x = x0
     call root_newton (fcn_jac_quad_args, x, args, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Joint FCN and JAC + ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Joint FCN and JAC + ARGS"
 
 end subroutine
 
 
-
-subroutine test_newton_bisect (tests)
-    type (test_suite), intent(inout) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_newton_bisect ()
 
     real (PREC) :: x, fx
     type (optim_result) :: res
     type (args_default) :: args
-    real (PREC), parameter :: atol = 1.0d-7, rtol = 0.0
+    real (PREC), parameter :: atol=1.0d-7, rtol=0.0
     real (PREC), parameter :: zero = 0.0
     real (PREC) :: root_exact
         !   True root and function value at root
     real (PREC) :: x0
 
-    tc => tests%add_test ("ROOT_NEWTON_BISECT unit tests")
-
     ! Check that error is raised the invalid bracket is passed
     x = 1.0
     call root_newton_bisect (fcn_jac_quad, x, a=1.0_PREC, b=1.0_PREC, res=res)
-    call tc%assert_true (res%status == NF_STATUS_INVALID_ARG, &
-        "Calling with invalid bracket a > b")
+    if (.not. (res%status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling with invalid bracket a > b"
 
     call root_newton_bisect (fcn_jac_quad, x, a=2.0_PREC, b=3.0_PREC, res=res)
-    call tc%assert_true (res%status == NF_STATUS_INVALID_ARG, &
-        "Calling with invalid bracket x < a < b")
+    if (.not. (res%status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling with invalid bracket x < a < b"
 
     call root_newton_bisect (fcn_jac_quad, x, a=-1.0_PREC, b=0.0_PREC, res=res)
-    call tc%assert_true (res%status == NF_STATUS_INVALID_ARG, &
-        "Calling with invalid bracket a < b < x")
+    if (.not. (res%status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling with invalid bracket a < b < x"
 
     ! Test withr regular quadratic function which should work exactly as
     ! regular ROOT_NEWTON and converge in the same number of iterations.
@@ -221,9 +193,9 @@ subroutine test_newton_bisect (tests)
     x = x0
     call root_newton_bisect (fcn_jac_quad, x, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, -1.0_PREC, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol) .and. res%success, &
-        "Quadratic function, " // str(x0, 'f0.6'))
+    if (.not. (all_close (x, - 1.0_PREC, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol) .and. res%success)) &
+        error stop "Quadratic function, -2.234000"
 
     x0 = 2.50d0
     root_exact = 0.0
@@ -234,9 +206,9 @@ subroutine test_newton_bisect (tests)
     x = x0
     call root_newton_bisect (fcn_jac_logistic, x, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol) .and. res%success, &
-        "Modified logistic CDF, " // str(x0, 'f0.6'))
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol) .and. res%success)) &
+        error stop "Modified logistic CDF, 2.500000"
 
     ! Test with regular Newton root-finder. This will fail for this
     ! particular starting point.
@@ -244,14 +216,14 @@ subroutine test_newton_bisect (tests)
     root_exact = -0.739086_PREC
     x = x0
     call root_newton (fcn_jac_cosxx, x, res=res)
-    
+
     x = x0
     call root_newton_bisect (fcn_jac_cosxx, x, res=res)
     fx = res%fx(1)
-    ! True root according to Wolfram Alpha        
-    call tc%assert_true (all_close (x, root_exact, atol=1.0e-5_PREC, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol) .and. res%success, &
-        "cos(x)+x, " // str(x0, 'f0.6'))
+    ! True root according to Wolfram Alpha
+    if (.not. (all_close (x, root_exact, atol=1.0e-5_PREC, rtol=rtol) .and. &
+        all_close (fx, zero, atol=atol, rtol=rtol) .and. res%success)) &
+        error stop "cos(x)+x, 1.555088"
 
     ! Function f(x) = |x|^alpha for alpha in (0,1/2)
     ! Standard ROOT_NEWTON will diverge
@@ -266,28 +238,22 @@ subroutine test_newton_bisect (tests)
     x = x0
     call root_newton_bisect (fcn_jac_abs_sqrt, x, args, a=-21.0d0, b=-0.01d0, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol) .and. res%success, &
-        "|x|^alpha, " // str(x0, 'f0.6'))
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol) .and. res%success)) &
+        error stop "|x|^alpha, -20.000000"
 
 end subroutine
 
 
-
-subroutine test_halley (tests)
-    type (test_suite), intent(inout) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_halley ()
 
     real (PREC) :: x, fx
     real (PREC), dimension(2) :: args
     type (optim_result) :: res
-    real (PREC), parameter :: atol = 1.0d-12, rtol = 0.0
+    real (PREC), parameter :: atol=1.0d-12, rtol=0.0
     real (PREC), parameter :: root_exact = -1.0, zero = 0.0
         !   True root and function value at root
     real (PREC), parameter :: x0 = -2.234d0
-
-    tc => tests%add_test ("ROOT_HALLEY: Quadratic function")
 
     args(1) = QUAD_ROOT1
     args(2) = QUAD_ROOT2
@@ -295,33 +261,28 @@ subroutine test_halley (tests)
     x = x0
     call root_halley (fcn_halley, x, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Quadratic function, no ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Quadratic function, no ARGS"
 
     x = x0
     call root_halley (fcn_halley_args, x, args, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol), &
-        "Quadratic function, ARGS")
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol))) &
+        error stop "Quadratic function, ARGS"
 
 end subroutine
 
 
-subroutine test_cycles (tests)
-    type (test_suite), intent(inout) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_cycles ()
 
     real (PREC) :: x, fx
     type (optim_result) :: res
-    real (PREC), parameter :: atol = 1.0d-7, rtol = 0.0
+    real (PREC), parameter :: atol=1.0d-7, rtol=0.0
     real (PREC), parameter :: root_exact = -1.76929235d0, zero = 0.0
         !   True root and function value at root
     real (PREC), parameter :: x0 = 0.99d0
-
-    tc => tests%add_test ("ROOT_NEWTON: period-2 cycles")
 
     ! Check objective function from wikipedia that is known to produce
     ! cycles if x0 is close to 1.0 or 0.0.
@@ -329,12 +290,11 @@ subroutine test_cycles (tests)
     x = x0
     call root_newton (fcn_jac_cycles, x, xtol2=1.0e-8_PREC, maxiter=100, res=res)
     fx = res%fx(1)
-    call tc%assert_true (all_close (x, root_exact, atol=atol, rtol=rtol) .and. &
-        all_close (fx, zero, atol=atol, rtol=rtol) .and. res%success, &
-        "f(x) = x**3.0 - 2*x + 2; x(0)=" // str(x0, 'f0.6'))
+    if (.not. (all_close (x, root_exact, atol=atol, rtol=rtol) .and. all_close &
+        (fx, zero, atol=atol, rtol=rtol) .and. res%success)) &
+        error stop "f(x) = x**3.0 - 2*x + 2; x(0)=.990000"
 
 end subroutine
-
 
 
 subroutine fcn_linear (x, fx)
@@ -352,7 +312,7 @@ end subroutine
 subroutine fcn_jac_linear (x, fx, fpx)
     real (PREC), intent(in) :: x
     real (PREC), intent(out) :: fx, fpx
-    
+
     call fcn_linear (x, fx)
     call jac_linear (x, fpx)
 end subroutine
@@ -384,11 +344,10 @@ subroutine fcn_jac_linear_args (x, args, fx, fpx)
     real (PREC), intent(in) :: x
     class (args_data), intent(inout) :: args
     real (PREC), intent(out) :: fx, fpx
-    
+
     call fcn_linear_args (x, args, fx)
     call jac_linear_args (x, args, fpx)
 end subroutine
-
 
 
 subroutine fcn_quad (x, fx)
@@ -406,7 +365,7 @@ end subroutine
 subroutine fcn_jac_quad (x, fx, fpx)
     real (PREC), intent(in) :: x
     real (PREC), intent(out) :: fx, fpx
-    
+
     call fcn_quad (x, fx)
     call jac_quad (x, fpx)
 end subroutine
@@ -445,7 +404,6 @@ subroutine fcn_jac_quad_args (x, args, fx, fpx)
 end subroutine
 
 
-
 subroutine fcn_halley (x, fx, fpx, fppx)
     real (PREC), intent(in) :: x
     real (PREC), intent(out) :: fx, fpx, fppx
@@ -453,6 +411,7 @@ subroutine fcn_halley (x, fx, fpx, fppx)
     fpx = 2.0 * x - (QUAD_ROOT1 + QUAD_ROOT2)
     fppx = 2.0
 end subroutine
+
 
 subroutine fcn_halley_args (x, args, fx, fpx, fppx)
     real (PREC), intent(in) :: x
@@ -464,7 +423,6 @@ subroutine fcn_halley_args (x, args, fx, fpx, fppx)
 end subroutine
 
 
-
 subroutine fcn_jac_cycles (x, fx, fpx)
     real (PREC), intent(in) :: x
     real (PREC), intent(out) :: fx, fpx
@@ -472,7 +430,6 @@ subroutine fcn_jac_cycles (x, fx, fpx)
     fx = x**3.0 - 2.0 * x + 2
     fpx = 3.0 * x**2.0 - 2.0
 end subroutine
-
 
 
 subroutine fcn_jac_logistic (x, fx, fpx)

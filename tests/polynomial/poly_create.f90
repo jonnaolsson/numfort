@@ -8,36 +8,23 @@ program test_polynomial_polyval
     use numfort_common
     use numfort_common_testing
     use numfort_polynomial
-    
-    use fcore_testing, only: test_suite, test_case
-    use fcore_strings
-    
+
     implicit none
-    
+
     integer, parameter :: PREC = real64
-    
+
     call test_all ()
-    
+
     contains
-    
 
 subroutine test_all ()
-    type (test_suite) :: tests 
-    
-    call tests%set_label ("Polynomial creation unit tests")
-    
-    call test_polyder (tests)
-    call test_polyshift (tests)
-    
-    call tests%print ()
+
+    call test_polyder ()
+    call test_polyshift ()
 
 end subroutine
 
-
-
-subroutine test_polyder (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_polyder ()
 
     real (PREC), parameter :: coefs(*) = [ real (PREC) &
             -1.234d0, 0.346d0, 23.345d0, -12.349d0, 2.789d0 ]
@@ -45,14 +32,12 @@ subroutine test_polyder (tests)
     integer :: m
     type (status_t) :: status
 
-    tc => tests%add_test ("POLYDER unit tests")
-
     ! Invalid order of differentiation
     allocate (coefs_new(1), source=1.0_PREC)
     m = -1
     call polyder (coefs(1:1), coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid order of differentiation")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Invalid order of differentiation"
     deallocate (coefs_new)
 
     ! Input array too small
@@ -60,8 +45,8 @@ subroutine test_polyder (tests)
     status = NF_STATUS_OK
     m = 0
     call polyder (coefs(1:0), coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid input coefficient array size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Invalid input coefficient array size"
     deallocate (coefs_new)
 
     ! Output array too small
@@ -69,8 +54,8 @@ subroutine test_polyder (tests)
     status = NF_STATUS_OK
     m = 0
     call polyder (coefs(1:1), coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid output coefficient array size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Invalid output coefficient array size"
     deallocate (coefs_new)
 
     ! Contant function
@@ -78,14 +63,14 @@ subroutine test_polyder (tests)
     m = 0
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:1), coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. all(coefs_new==coefs(1:1)), &
-        "Polynomial degree 0, 0-th derivative")
+    if (.not. (status == NF_STATUS_OK .and. all (coefs_new == coefs(1:1)))) &
+        error stop "Polynomial degree 0, 0-th derivative"
 
     m = 1
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:1), coefs_new, m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. all(coefs_new==0.0_PREC), &
-        "Polynomial degree 0, 1-st derivative")
+    if (.not. (status == NF_STATUS_OK .and. all (coefs_new == 0.0_PREC))) &
+        error stop "Polynomial degree 0, 1-st derivative"
     deallocate (coefs_new)
 
     ! Linear function
@@ -93,20 +78,20 @@ subroutine test_polyder (tests)
     m = 0
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:2), coefs_new, m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. all(coefs(1:2) == coefs_new), &
-        "Polynomial degree 1, 0-th derivative")
+    if (.not. (status == NF_STATUS_OK .and. all (coefs(1:2) == coefs_new))) &
+        error stop "Polynomial degree 1, 0-th derivative"
 
     m = 1
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:2), coefs_new(1:1), m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. coefs_new(1)==coefs(2), &
-        "Polynomial degree 1, 1-st derivative")
+    if (.not. (status == NF_STATUS_OK .and. coefs_new(1) == coefs(2))) &
+        error stop "Polynomial degree 1, 1-st derivative"
 
     m = 2
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:2), coefs_new(1:1), m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. coefs_new(1) == 0.0, &
-        "Polynomial degree 1, 2-nd derivative")
+    if (.not. (status == NF_STATUS_OK .and. coefs_new(1) == 0.0)) &
+        error stop "Polynomial degree 1, 2-nd derivative"
     deallocate (coefs_new)
 
     ! Quadratic function
@@ -114,32 +99,29 @@ subroutine test_polyder (tests)
     m = 0
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:3), coefs_new, m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. all(coefs(1:3)==coefs_new), &
-        "Polynomial degree 2, 0-th derivative")
+    if (.not. (status == NF_STATUS_OK .and. all (coefs(1:3) == coefs_new))) &
+        error stop "Polynomial degree 2, 0-th derivative"
 
     m = 1
     status = NF_STATUS_UNDEFINED
     coefs_ok(:) = [coefs(2), 2.0d0 * coefs(3), 0.0d0]
     call polyder (coefs(1:3), coefs_new(1:2), m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. &
-        all_close(coefs_new(1:2), coefs_ok(1:2), atol=1.d-10), &
-        "Polynomial degree 2, 1-st derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new(1:2), coefs_ok(1:2), atol=1.d-10))) &
+        error stop "Polynomial degree 2, 1-st derivative"
 
     m = 2
     coefs_ok(:) =  [2.0d0 * coefs(3), 0.0d0, 0.0d0]
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:3), coefs_new, m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. &
-        all_close(coefs_new,coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 2, 2-nd derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new,coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 2, 2-nd derivative"
 
     m = 3
     coefs_ok(:) =  0.0
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:3), coefs_new, m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. &
-        all_close(coefs_new, coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 2, 3-rd derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new, coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 2, 3-rd derivative"
     deallocate (coefs_new, coefs_ok)
 
     ! Cubic function
@@ -147,32 +129,29 @@ subroutine test_polyder (tests)
     m = 0
     status = NF_STATUS_UNDEFINED
     call polyder (coefs(1:4), coefs_new, m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. all(coefs(1:4)==coefs_new), &
-        "Polynomial degree 3, 0-th derivative")
+    if (.not. (status == NF_STATUS_OK .and. all (coefs(1:4) == coefs_new))) &
+        error stop "Polynomial degree 3, 0-th derivative"
 
     m = 2
     status = NF_STATUS_UNDEFINED
     coefs_ok(:) = [2.0 * coefs(3), 3.0 * 2.0 * coefs(4), 0.0d0, 0.0d0]
     call polyder (coefs(1:4), coefs_new, m, status)
-    call tc%assert_true (status==NF_STATUS_OK .and. &
-        all_close(coefs_new, coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 3, 2-nd derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new, coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 3, 2-nd derivative"
 
     m = 3
     status = NF_STATUS_UNDEFINED
     coefs_ok(:) = [3.0 * 2.0 * coefs(4), 0.0d0, 0.0d0, 0.0d0]
     call polyder (coefs(1:4), coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (coefs_new, coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 3, 3-rd derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new, coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 3, 3-rd derivative"
 
     m = 4
     status = NF_STATUS_UNDEFINED
     coefs_ok(:) = 0.0
     call polyder (coefs(1:4), coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (coefs_new, coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 3, 4-th derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new, coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 3, 4-th derivative"
     deallocate (coefs_new, coefs_ok)
 
     ! Degree 4 polynomial
@@ -181,38 +160,31 @@ subroutine test_polyder (tests)
     status = NF_STATUS_UNDEFINED
     coefs_ok(:) = [2.0 * coefs(3), 3.0*2.0*coefs(4), 4.0*3.0*coefs(5), 0.0d0, 0.0d0]
     call polyder (coefs, coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (coefs_new, coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 4, 2-nd derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new, coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 4, 2-nd derivative"
 
     m = 3
     status = NF_STATUS_UNDEFINED
     coefs_ok(:) = [3.0*2.0*coefs(4), 4.0*3.0*2.0*coefs(5), 0.0d0, 0.0d0, 0.0d0]
     call polyder (coefs, coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (coefs_new, coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 4, 3-rd derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new, coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 4, 3-rd derivative"
 
     m = 4
     status = NF_STATUS_UNDEFINED
     coefs_ok(:) = 0.0
     coefs_ok(1) = 4.0 * 3.0 * 2.0 * coefs(5)
     call polyder (coefs, coefs_new, m, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (coefs_new, coefs_ok, atol=1.0d-10), &
-        "Polynomial degree 4, 4-th derivative")
+    if (.not. (status == NF_STATUS_OK .and. all_close (coefs_new, coefs_ok, atol=1.0d-10))) &
+        error stop "Polynomial degree 4, 4-th derivative"
 
     deallocate (coefs_new)
 
 end subroutine
 
-
-
-subroutine test_polyshift (tests)
+subroutine test_polyshift ()
     !*  Unit tests for POLYSHIFT routine
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     integer, parameter :: KMAX = 4
     real (PREC), parameter :: coefs0(0:KMAX) = [ real (PREC) :: &
         -1.23d0, 2.34d0, -5.678d0, 8.234d0, 1.789d0 ]
@@ -221,17 +193,14 @@ subroutine test_polyshift (tests)
     real (PREC) :: xshift
     integer :: k, n
     type (status_t) :: status
-    type (str) :: msg
-
-    tc => tests%add_test ('POLYSHIFT unit tests')
 
     ! Test input checking
     allocate (coefs1(1))
     xshift = 0.0
 
     call polyshift (coefs0, xshift, coefs1, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Input checks: size(COEFS0) /= size(COEFS1)')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Input checks: size(COEFS0) /= size(COEFS1)"
 
     deallocate (coefs1)
 
@@ -242,9 +211,9 @@ subroutine test_polyshift (tests)
 
         call polyshift (coefs0(0:k), xshift, coefs1, status)
 
-        msg = 'Polynomial degree ' // str(k) // ', x0=0.0'
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (coefs1, coefs0(0:k), atol=1.0d-10, rtol=0.0d0), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (coefs1, coefs0(0:k), &
+            atol=1.0d-10, rtol=0.0d0))) &
+            error stop "POLYSHIFT with zero shift changed coefficients"
 
         deallocate (coefs1)
     end do
@@ -265,9 +234,8 @@ subroutine test_polyshift (tests)
         call polyval (coefs0(0:k), x0, y0)
         call polyval (coefs1, x1, y1)
 
-        msg = 'Polynomial degree ' // str(k) // ', x0=' // str(xshift, 'f0.3')
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y0, y1, atol=1.0d-10, rtol=0.0d0), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y0, y1, atol=1.0d-10, rtol=0.0d0))) &
+            error stop "POLYSHIFT with positive shift changed polynomial values"
 
         deallocate (coefs1)
         deallocate (x0, x1, y0, y1)
@@ -289,14 +257,12 @@ subroutine test_polyshift (tests)
         call polyval (coefs0(0:k), x0, y0)
         call polyval (coefs1, x1, y1)
 
-        msg = 'Polynomial degree ' // str(k) // ', x0=' // str(xshift, 'f0.3')
-        call tc%assert_true (status == NF_STATUS_OK .and. &
-            all_close (y0, y1, atol=1.0d-10, rtol=0.0d0), msg)
+        if (.not. (status == NF_STATUS_OK .and. all_close (y0, y1, atol=1.0d-10, rtol=0.0d0))) &
+            error stop "POLYSHIFT with negative shift changed polynomial values"
 
         deallocate (coefs1)
         deallocate (x0, x1, y0, y1)
     end do
-
 
 end subroutine
 

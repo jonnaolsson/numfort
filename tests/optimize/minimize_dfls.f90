@@ -11,42 +11,24 @@ program test_optimize_minimize_dfls
 
     use numfort_stats
 
-    use fcore_strings
-    use fcore_testing
-
     integer, parameter :: PREC = real64
 
     call test_all ()
 
-
     contains
-
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("optimize::minimize_DFLS unit tests")
-
-    call test_quadratic (tests)
-
-    call tests%print ()
+    call test_quadratic ()
 
 end subroutine
 
-
-
-subroutine test_quadratic (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_quadratic ()
 
     integer :: n, m
     real (PREC), dimension(:), allocatable :: x, fx_ok
     real (PREC) :: rhobeg, rhoend
     type (optim_result) :: res
-
-    tc => tests%add_test ("Quadratic objective")
 
     n = 5
     m = 5
@@ -63,11 +45,10 @@ subroutine test_quadratic (tests)
     call minimize_dfls (fobj_quad, x, m, rhobeg, rhoend, res=res)
     fx_ok(:) = 0.0_PREC
 
-    call tc%assert_true (all_close (res%fx, fx_ok, atol=1.0d-3), &
-        "Smooth quadratic function")
+    if (.not. (all_close (res%fx, fx_ok, atol = 1.0d-3))) &
+        error stop "Smooth quadratic function"
 
 end subroutine
-
 
 
 subroutine fobj_quad (x, fx)
@@ -76,8 +57,5 @@ subroutine fobj_quad (x, fx)
 
     fx = x ** 2.0
 end subroutine
-
-
-
 
 end program

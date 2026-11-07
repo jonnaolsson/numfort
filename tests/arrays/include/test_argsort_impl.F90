@@ -20,8 +20,8 @@ do k = 1, size(SIZES)
 
     values_ok = all (arr_sorted(1:n-1) <= arr_sorted(2:n))
 
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        'Array size: ' // str(n))
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "ARGSORT returned unsorted values or an invalid status"
 
     deallocate (rarr, arr, arr_sorted, iorder)
 end do

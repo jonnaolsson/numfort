@@ -1,6 +1,5 @@
 
 
-
 program test_numfort_arrays_copy
 
     use, intrinsic :: iso_fortran_env
@@ -12,45 +11,28 @@ program test_numfort_arrays_copy
 
     use numfort_stats
 
-    use fcore_strings
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
-
 
     call test_all ()
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("numfort_arrays COPY unit tests")
-
-    call test_pack_indexed (tests)
-
-    call tests%print ()
+    call test_pack_indexed ()
 
 end subroutine
 
-
-
-subroutine test_pack_indexed (tests)
+subroutine test_pack_indexed ()
     !*   Unit tests for COPY_INDEXED.
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: src, dst, dst_ok
     integer, dimension(:), allocatable :: indices
     integer :: m, n, k
     logical :: values_ok
     type (status_t) :: status
-
-    tc => tests%add_test ('Unit test for PACK_INDEXED')
 
     call set_seed (123)
 
@@ -67,29 +49,29 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        '2d-API: size-1 input array, default args')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "2d-API: size-1 input array, default args"
 
     status = NF_STATUS_UNDEFINED
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.true., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        '2d-API: size-1 input array, TRANS=T')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "2d-API: size-1 input array, TRANS=T"
 
     status = NF_STATUS_UNDEFINED
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.false., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        '2d-API: size-1 input array, DIM=2, TRANS=F')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "2d-API: size-1 input array, DIM=2, TRANS=F"
 
     status = NF_STATUS_UNDEFINED
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.true., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (values_ok .and. status == NF_STATUS_OK, &
-        '2d-API: size-1 input array, DIM=2, TRANS=T')
+    if (.not. (values_ok .and. status == NF_STATUS_OK)) &
+        error stop "2d-API: size-1 input array, DIM=2, TRANS=T"
 
     deallocate (indices, dst, src)
 
@@ -108,15 +90,15 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.false., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: column vector SRC, DIM=1, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: column vector SRC, DIM=1, TRANS=F"
 
     status = NF_STATUS_UNDEFINED
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, [1], dst, dim=2, trans=.false., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: column vector SRC, DIM=2, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: column vector SRC, DIM=2, TRANS=F"
 
     deallocate (dst)
 
@@ -126,15 +108,15 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.true., status=status)
     values_ok = all (src == transpose(dst))
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: column vector SRC, DIM=1, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: column vector SRC, DIM=1, TRANS=T"
 
     status = NF_STATUS_UNDEFINED
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, [1], dst, dim=2, trans=.true., status=status)
     values_ok = all (src == transpose(dst))
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: column vector SRC, DIM=2, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: column vector SRC, DIM=2, TRANS=T"
 
     deallocate (src, dst, indices)
 
@@ -152,15 +134,15 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, [1], dst, dim=1, trans=.false., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: row vector SRC, DIM=1, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: row vector SRC, DIM=1, TRANS=F"
 
     status = NF_STATUS_UNDEFINED
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.false., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: row vector SRC, DIM=2, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: row vector SRC, DIM=2, TRANS=F"
 
     deallocate (dst)
 
@@ -170,18 +152,17 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, [1], dst, dim=1, trans=.true., status=status)
     values_ok = all (src == transpose(dst))
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: row vector SRC, DIM=1, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: row vector SRC, DIM=1, TRANS=T"
 
     status = NF_STATUS_UNDEFINED
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.true., status=status)
     values_ok = all (src == transpose(dst))
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: row vector SRC, DIM=2, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: row vector SRC, DIM=2, TRANS=T"
 
     deallocate (src, dst, indices)
-
 
     ! --- 2d-API: 2d-inputs, arange'd indices ---
 
@@ -198,8 +179,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.false., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: DIM=1, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: DIM=1, TRANS=F"
 
     deallocate (indices)
 
@@ -210,8 +191,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src,indices, dst, dim=2, trans=.false., status=status)
     values_ok = all (src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: DIM=2, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: DIM=2, TRANS=F"
 
     deallocate (dst, indices)
 
@@ -222,8 +203,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.true., status=status)
     values_ok = all (src == transpose(dst))
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: DIM=1, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: DIM=1, TRANS=T"
 
     deallocate (indices)
 
@@ -234,8 +215,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.true., status=status)
     values_ok = all (src == transpose(dst))
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: DIM=2, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: DIM=2, TRANS=T"
 
     deallocate (src, dst, indices)
 
@@ -258,8 +239,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.false., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Reordered indices, DIM=1, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Reordered indices, DIM=1, TRANS=F"
 
     deallocate (indices)
 
@@ -272,8 +253,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.false., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Reordered indices, DIM=2, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Reordered indices, DIM=2, TRANS=F"
 
     deallocate (indices, dst, dst_ok)
 
@@ -287,8 +268,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.true., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Reordered indices, DIM=1, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Reordered indices, DIM=1, TRANS=T"
 
     deallocate (indices)
 
@@ -302,11 +283,10 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.true., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Reordered indices, DIM=2, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Reordered indices, DIM=2, TRANS=T"
 
     deallocate (src, indices, dst, dst_ok)
-
 
     ! --- 2d-API: 2d-inputs, subset of reordered indices ---
 
@@ -328,8 +308,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.false., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Subset of reordered indices, DIM=1, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Subset of reordered indices, DIM=1, TRANS=F"
 
     deallocate (indices, dst, dst_ok)
 
@@ -342,8 +322,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.false., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Subset of reordered indices, DIM=2, TRANS=F')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Subset of reordered indices, DIM=2, TRANS=F"
 
     deallocate (indices, dst, dst_ok)
 
@@ -357,8 +337,8 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=1, trans=.true., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Subset of reordered indices, DIM=1, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Subset of reordered indices, DIM=1, TRANS=T"
 
     deallocate (indices, dst, dst_ok)
 
@@ -372,11 +352,10 @@ subroutine test_pack_indexed (tests)
     dst(:,:) = huge(0.0_PREC)
     call pack_indexed (src, indices, dst, dim=2, trans=.true., status=status)
     values_ok = all (dst == dst_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '2d-API: Subset of reordered indices, DIM=2, TRANS=T')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "2d-API: Subset of reordered indices, DIM=2, TRANS=T"
 
     deallocate (src, indices, dst, dst_ok)
-
 
 end subroutine
 

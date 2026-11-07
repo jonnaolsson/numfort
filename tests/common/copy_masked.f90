@@ -9,47 +9,29 @@ program test_numfort_common_copy_masked
     use numfort_common_status
     use numfort_stats, only: set_seed
 
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
 
     call test_all ()
 
-
     contains
-
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("numfort_common_copy_masked unit tests")
-
-    call test_copy_2d_1dim (tests)
-
-
-    call tests%print()
+    call test_copy_2d_1dim ()
 
 end subroutine
 
+subroutine test_copy_2d_1dim ()
 
-
-subroutine test_copy_2d_1dim (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: src, dst
     logical, dimension(:), allocatable :: mask
     integer :: m, n, i, j
     logical :: values_ok
     type (status_t) :: status
 
-    tc => tests%add_test ("COPY_MASKED for 2d arrays, 1d masks")
-
     call set_seed (123)
-
 
     ! === Input checks ===
 
@@ -59,8 +41,8 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(m-1))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable SRC, MASK along dim=1")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable SRC, MASK along dim=1"
     deallocate (src, dst, mask)
 
     ! 2. Non-conformable SRC, MASK along dim=2
@@ -69,8 +51,8 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(n+1))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable SRC, MASK along dim=2")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable SRC, MASK along dim=2"
     deallocate (src, dst, mask)
 
     ! 3. Non-conformable SRC, DST along non-masked dim = 2
@@ -79,8 +61,8 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n-1), mask(m))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable SRC, DST along non-masked dimension; DIM=1")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable SRC, DST along non-masked dimension; DIM=1"
     deallocate (src, dst, mask)
 
     ! 4. Non-conformable SRC, DST along non-masked dim = 1
@@ -89,8 +71,8 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m+1,n), mask(n))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable SRC, DST along non-masked dimension; DIM=2")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable SRC, DST along non-masked dimension; DIM=2"
     deallocate (src, dst, mask)
 
     ! 5. Invalid dim < 1
@@ -99,7 +81,7 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(m))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=0, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "Invalid DIM < 1")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid DIM < 1"
     deallocate (src, dst, mask)
 
     ! 6. Invalid dim > 2
@@ -108,7 +90,7 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(n))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=3, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "Invalid DIM > 2")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid DIM > 2"
     deallocate (src, dst, mask)
 
     ! === Degenerate input args ===
@@ -119,7 +101,7 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(m))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "0-sized row SRC, DST; DIM=1")
+    if (.not. (status == NF_STATUS_OK)) error stop "0-sized row SRC, DST; DIM=1"
     deallocate (src, dst, mask)
 
     ! 2. 0-sized rows, dim = 2
@@ -128,7 +110,7 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(n))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "0-sized row SRC, DST; DIM=2")
+    if (.not. (status == NF_STATUS_OK)) error stop "0-sized row SRC, DST; DIM=2"
     deallocate (src, dst, mask)
 
     ! 3. 0-sized cols, dim = 1
@@ -137,7 +119,7 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(m))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "0-sized col SRC, DST; DIM=1")
+    if (.not. (status == NF_STATUS_OK)) error stop "0-sized col SRC, DST; DIM=1"
     deallocate (src, dst, mask)
 
     ! 4. 0-sized cols, dim = 2
@@ -146,7 +128,7 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(n))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "0-sized col SRC, DST; DIM=2")
+    if (.not. (status == NF_STATUS_OK)) error stop "0-sized col SRC, DST; DIM=2"
     deallocate (src, dst, mask)
 
     ! 5. 0-sized rows and cols
@@ -155,7 +137,7 @@ subroutine test_copy_2d_1dim (tests)
     allocate (src(m,n), dst(m,n), mask(m))
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, "0-sized row/col SRC, DST")
+    if (.not. (status == NF_STATUS_OK)) error stop "0-sized row/col SRC, DST"
     deallocate (src, dst, mask)
 
     ! === No masked elements ===
@@ -169,8 +151,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
     values_ok = all(src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "No masked elements, DIM=1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No masked elements, DIM=1"
     deallocate (src, dst, mask)
 
     ! 2. dim = 2
@@ -182,8 +164,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
     values_ok = all(src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "No masked elements, DIM=2")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No masked elements, DIM=2"
     deallocate (src, dst, mask)
 
     ! === All elements masked ===
@@ -199,8 +181,8 @@ subroutine test_copy_2d_1dim (tests)
     call copy (src, dst, mask, dim=1, status=status)
     ! Check that values in DST are untouched
     values_ok = all (dst == -1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "All elements masked, DIM=1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All elements masked, DIM=1"
     deallocate (src, dst, mask)
 
     ! 2. dim = 2
@@ -214,8 +196,8 @@ subroutine test_copy_2d_1dim (tests)
     call copy (src, dst, mask, dim=2, status=status)
     ! Check that values in DST are untouched
     values_ok = all (dst == -1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "All elements masked, DIM=2")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All elements masked, DIM=2"
     deallocate (src, dst, mask)
 
     ! === One dimension of size 1 ===
@@ -232,8 +214,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
     values_ok = all(src([1,4,8],1) == dst(1:3,1)) .and. all(dst(4:,1) == -1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Row vector SRC, DST; DIM = 1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Row vector SRC, DST; DIM = 1"
 
     deallocate (src, dst, mask)
 
@@ -248,8 +230,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
     values_ok = all(src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Row vector SRC, DST; MASK = .TRUE., DIM=2")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Row vector SRC, DST; MASK = .TRUE., DIM=2"
     deallocate (src, dst, mask)
 
     ! (3) 1 column, dim = 2, MASK = .false.
@@ -263,8 +245,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
     values_ok = all (dst == -1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Row vector SRC, DST; MASK = .FALSE.; DIM=2")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Row vector SRC, DST; MASK = .FALSE.; DIM=2"
     deallocate (src, dst, mask)
 
     ! (4) 1 row, DIM = 2
@@ -279,8 +261,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=2, status=status)
     values_ok = all(src(1,[2,4,7,10,11]) == dst(1,1:5)) .and. all (dst(1,6:) == -1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Column vector SRC, DST; DIM = 1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Column vector SRC, DST; DIM = 1"
 
     deallocate (src, dst, mask)
 
@@ -295,8 +277,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
     values_ok = all(src == dst)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Column vector SRC, DST; MASK = .TRUE.; DIM = 1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Column vector SRC, DST; MASK = .TRUE.; DIM = 1"
     deallocate (src, dst, mask)
 
     ! (6) 1 row, DIM = 1, MASK = .false.
@@ -310,8 +292,8 @@ subroutine test_copy_2d_1dim (tests)
     status = NF_STATUS_UNDEFINED
     call copy (src, dst, mask, dim=1, status=status)
     values_ok = all(dst == -1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Column vector SRC, DST; MASK = .FALSE.; DIM=1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Column vector SRC, DST; MASK = .FALSE.; DIM=1"
     deallocate (src, dst, mask)
 
     ! === "Regular" use-cases ===
@@ -334,8 +316,8 @@ subroutine test_copy_2d_1dim (tests)
         j = j + 1
         values_ok = all(dst(j,:) == src(i,:))
     end do
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Exact-size DST, DIM=1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Exact-size DST, DIM=1"
     deallocate (src, dst, mask)
 
     ! (2) Mask along DIM = 2, with DST of exact size
@@ -356,8 +338,8 @@ subroutine test_copy_2d_1dim (tests)
         j = j + 1
         values_ok = all(dst(:,j) == src(:,i))
     end do
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Exact-size DST, DIM=2")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Exact-size DST, DIM=2"
 
     deallocate (src, dst, mask)
 
@@ -386,8 +368,8 @@ subroutine test_copy_2d_1dim (tests)
 
     values_ok = values_ok .and. all (dst(m+1:,:) == -1.0)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Over-sized DST array, DIM=1")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Over-sized DST array, DIM=1"
 
     deallocate (src, dst, mask)
 
@@ -413,14 +395,11 @@ subroutine test_copy_2d_1dim (tests)
 
     values_ok = values_ok .and. all(dst(:,n+1:) == -1.0)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Over-sized DST array, DIM=2")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Over-sized DST array, DIM=2"
 
     deallocate (src, dst, mask)
 
-
 end subroutine
-
-
 
 end program

@@ -1,14 +1,10 @@
 
 
-subroutine __APPEND(test_gemv,__PREC) (tests)
+subroutine __APPEND(test_gemv,__PREC) ()
     !* TEST_GEMV implements unit tests for the F95 wrapper for GEMV.
     use blas_interfaces, only: BLAS_GEMV => GEMV
 
     integer, parameter  :: PREC = __PREC
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
-    type (str) :: msg
 
     integer :: m, n, lda
     integer, parameter :: mrange(*) = [1, 2, 10]
@@ -18,11 +14,9 @@ subroutine __APPEND(test_gemv,__PREC) (tests)
     real (PREC), dimension(:), allocatable :: x, y, y95
     real (PREC) :: alpha, beta
     character (1) :: trans
-    character (1) :: trans_range(2) = ['N', 'T']
+    character (1) :: trans_range(2) = ["N", "T"]
 
     integer :: i, j, k
-
-    tc => tests%add_test ("GEMV wrapper for real*" // str(PREC))
 
     call set_seed (123)
 
@@ -37,7 +31,7 @@ subroutine __APPEND(test_gemv,__PREC) (tests)
 
                 allocate (a(m, n))
                 allocate (x(n))
-                if (trans == 'N') then
+                if (trans == "N") then
                     allocate (y(m), y95(m))
                 else
                     allocate (y(n), y95(n))
@@ -55,23 +49,19 @@ subroutine __APPEND(test_gemv,__PREC) (tests)
 
                 ! Call F95 interface (with default alpha, beta) and default
                 ! TRANS (if applicable)
-                if (trans == 'N') then
+                if (trans == "N") then
                     call GEMV (a, x, y95)
                 else
                     call GEMV (a, x, y95, trans=trans)
                 end if
 
-                msg = 'GEMV (trans=' // trans // ', m=' // str(m) // ', n=' &
-                    // str(n) // ')'
-                call tc%assert_true (all(y==y95), msg)
+                if (.not. (all (y == y95))) &
+                    error stop "GEMV with default arguments differs from BLAS"
 
                 call GEMV (a, x, y95, alpha=alpha, beta=beta, trans=trans)
 
-                msg = 'GEMV (trans=' // trans // ', m=' // str(m) // ', n=' &
-                    // str(n) // ', alpha=' // str(alpha, 'f0.2') &
-                    // ', beta=' // str(beta, 'f0.2') // ')'
-
-                call tc%assert_true (all(y==y95), msg)
+                if (.not. (all (y == y95))) &
+                    error stop "GEMV with explicit default scaling differs from BLAS"
 
                 ! === Call with non-default ALPHA, BETA ===
                 y95(:) = y
@@ -81,11 +71,8 @@ subroutine __APPEND(test_gemv,__PREC) (tests)
                 call BLAS_GEMV (trans, m, n, alpha, a, lda, x, incx, beta, y, incy)
                 call GEMV (a, x, y95, alpha=alpha, beta=beta, trans=trans)
 
-                msg = 'GEMV (trans=' // trans // ', m=' // str(m) // ', n=' &
-                    // str(n) // ', alpha=' // str(alpha, 'f0.2') &
-                    // ', beta=' // str(beta, 'f0.2') // ')'
-
-                call tc%assert_true (all(y==y95), msg)
+                if (.not. (all (y == y95))) &
+                    error stop "GEMV with scaling differs from BLAS"
 
                 deallocate (a, x, y, y95)
 

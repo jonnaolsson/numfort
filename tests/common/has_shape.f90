@@ -6,80 +6,55 @@ program test_common_has_shape
     use, intrinsic :: iso_fortran_env
     use numfort_common, only: has_shape
 
-    use fcore_testing
-    use fcore_common, only: str, str_array, operator(//)
-
     implicit none
 
     integer, parameter :: PREC = real64
-
 
     call test_all ()
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("numfort_common HAS_SHAPE unit tests")
-
-    call test_1d (tests)
-    call test_2d (tests)
-
-    call tests%print ()
+    call test_1d ()
+    call test_2d ()
 
 end subroutine
 
-
-subroutine test_1d (tests)
+subroutine test_1d ()
     !*  Unit tests for in-place insertion into given argument array.
-
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
 
     integer, parameter :: n = 2
     integer, dimension(n) :: arr
     logical :: res, res0
     integer :: i, j
-    type (str) :: msg
-
-    tc => tests%add_test ("1d-array tests")
 
     do i = 0, n+1
         do j = 0, n
             ! Test with scalar interface
             res = has_shape (arr(:j), i)
             res0 = size(arr(:j)) == i
-            msg = "ARR of size " // str(j, "i0") // "; SHP=" // str(i, "i0")
-            call tc%assert_true (res .eqv. res0, msg)
+            if (.not. (res .eqv. res0)) &
+                error stop "HAS_SHAPE disagrees with a scalar shape comparison"
 
             ! Test with empty arrays, array interface
             res = has_shape (arr(:j), [i])
             res0 = all(shape(arr(:j)) == [i])
-            msg = "ARR of size " // str(j, "i0") // "; SHP=[" // str(i, "i0") // "]"
-            call tc%assert_true (res .eqv. res0, msg)
+            if (.not. (res .eqv. res0)) &
+                error stop "HAS_SHAPE disagrees with an array shape comparison"
         end do
     end do
 
 end subroutine
 
-
-subroutine test_2d (tests)
+subroutine test_2d ()
     !*  Unit tests for in-place insertion into given argument array.
-
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
 
     integer, parameter :: n = 2
     integer, dimension(n,n) :: arr
     integer, dimension(:), allocatable :: shp
     logical :: res, res0
     integer :: i, j, k, l
-    type (str) :: msg
-
-    tc => tests%add_test ("2d-array tests")
 
     do i = 0, n+1
         do j = 0, n+1
@@ -87,9 +62,8 @@ subroutine test_2d (tests)
                 do l = 0, n
                     res = has_shape (arr(:k,:l), [i,j])
                     res0 = all(shape(arr(:k,:l)) == [i,j])
-                    msg = "ARR of shape " // str_array(shape(arr(:k,:l)), "i0") &
-                        // "; SHP=" // str_array([i,j], "i0")
-                    call tc%assert_true (res .eqv. res0, msg)
+                    if (.not. (res .eqv. res0)) &
+                        error stop "HAS_SHAPE disagrees with the two-dimensional shape"
                 end do
             end do
         end do
@@ -102,13 +76,11 @@ subroutine test_2d (tests)
 
         allocate (shp(i), source=0)
         res = has_shape (arr, shp)
-        msg = '2d-array, shape argument of length ' // str(i)
-        call tc%assert_false (res, msg)
+        if (res) error stop "HAS_SHAPE accepted an incompatible shape vector"
 
         deallocate (shp)
     end do
 
 end subroutine
-
 
 end program

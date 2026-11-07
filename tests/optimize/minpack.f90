@@ -5,15 +5,12 @@ program test_optimize_minpack
     use, intrinsic :: ieee_arithmetic
     use, intrinsic :: iso_fortran_env
 
-    use fcore_common, FC_status_t => status_t
-    use fcore_testing
     use numfort_arrays
     use numfort_common_testing
     use numfort_optimize, workspace => workspace_real64, &
         optim_result => optim_result_real64
 
     integer, parameter :: PREC = real64
-
 
     type, extends(args_data) :: args_linear
         !*  Stores matrix A and vector b of linear equation system Ax=b
@@ -29,34 +26,22 @@ program test_optimize_minpack
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_root_lm_linear ()
+    call test_root_lm_poly ()
 
-    call tests%set_label ("MINPACK wrapper unit tests")
-
-    call test_root_lm_linear (tests)
-    call test_root_lm_poly (tests)
-
-    call tests%print ()
 end subroutine
 
-
-
-subroutine test_root_lm_linear (tests)
+subroutine test_root_lm_linear ()
     !*  Tests for MINPACK's LM root-finder with a linear equation system
     !   (no need for MINPACK routines in this case, of course).
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     type (args_linear) :: args
     integer :: n, m
     type (workspace) :: work
     type (optim_result) :: res
     real (PREC), dimension(:), allocatable :: fx, x_desired, x
-
-    tc => tests%add_test ("Tests for LM root-finder (linear objective)")
 
     ! Test 1: User-provided function evaluates function and its Jacobian
     n = 3
@@ -80,49 +65,40 @@ subroutine test_root_lm_linear (tests)
 
     ! General checks not specific not this test case: X and FX are identical
     ! with those stored in result object
-    call tc%assert_true (all(res%x == x), "FCN and JAC given: X == RES%X")
-    call tc%assert_true (all(res%fx == fx), "FCN and JAC given: f(X) == RES%FX")
+    if (.not. (all (res%x == x))) error stop "FCN and JAC given: X == RES%X"
+    if (.not. (all (res%fx == fx))) error stop "FCN and JAC given: f(X) == RES%FX"
 
-    call tc%assert_true (res%status == NF_STATUS_OK, &
-        "FCN and JAC given: exit status")
-    call tc%assert_true (all_close (x, x_desired, atol=1.0d-8), &
-        "FCN and JAC given: solution X close to Scipy")
-    call tc%assert_true (maxval(abs(res%fx)) < 1.0d-6, &
-        "FNC and JAC given: solution f(X) close to zero vector")
+    if (.not. (res%status == NF_STATUS_OK)) error stop "FCN and JAC given: exit status"
+    if (.not. (all_close (x, x_desired, atol=1.0d-8))) &
+        error stop "FCN and JAC given: solution X close to Scipy"
+    if (.not. (maxval (abs (res%fx)) < 1.0d-6)) &
+        error stop "FNC and JAC given: solution f(X) close to zero vector"
 
     ! Test 2: Use numeric differentiation
     x(:) = 0.0
     fx(:) = -100.0
     call root_lm (fcn_linear, x, args, fx, ndiff=.true., work=work, res=res)
 
-    call tc%assert_true (res%status == NF_STATUS_OK, &
-        "FCN given: exit status")
-    call tc%assert_true (all_close (x, x_desired, atol=1.0d-8), &
-        "FCN given: solution X close to Scipy")
-    call tc%assert_true (maxval(abs(res%fx)) < 1.0d-6, &
-        "FNC given: solution f(X) close to zero vector")
+    if (.not. (res%status == NF_STATUS_OK)) error stop "FCN given: exit status"
+    if (.not. (all_close (x, x_desired, atol=1.0d-8))) &
+        error stop "FCN given: solution X close to Scipy"
+    if (.not. (maxval (abs (res%fx)) < 1.0d-6)) &
+        error stop "FNC given: solution f(X) close to zero vector"
 
     deallocate (fx, x_desired, x)
     deallocate (args%mat, args%b)
 
-
 end subroutine
 
 
-
-subroutine test_root_lm_poly (tests)
+subroutine test_root_lm_poly ()
     !*  Test MINPACK's LMDER with vector-valued polynomial function with
     !   domain R^4.
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     type (workspace) :: work
     type (optim_result) :: res
     integer, parameter :: NDIM = 4
     real (PREC), dimension(NDIM) :: x, x_desired, fx
-
-    tc => tests%add_test ("Tests for LM root-finder with polynomial objective")
 
     ! Result from Scipy's MINPACK wrapper
     x_desired = [ 0.310535466871667d0, -2.071117380200093d0,  &
@@ -132,12 +108,11 @@ subroutine test_root_lm_poly (tests)
     x = 0.0
     call root_lm (fcn_jac_poly, x, fx, work=work, res=res)
 
-    call tc%assert_true (res%status == NF_STATUS_OK, &
-        "FCN and JAC given: exit status")
-    call tc%assert_true (all_close (x, x_desired, atol=1.0d-8), &
-        "FCN and JAC given: solution close to Scipy")
-    call tc%assert_true (maxval(abs(res%fx)) < 1.0d-6, &
-        "FCN and JAC given: solution f(X) close to zero vector")
+    if (.not. (res%status == NF_STATUS_OK)) error stop "FCN and JAC given: exit status"
+    if (.not. (all_close (x, x_desired, atol=1.0d-8))) &
+        error stop "FCN and JAC given: solution close to Scipy"
+    if (.not. (maxval (abs (res%fx)) < 1.0d-6)) &
+        error stop "FCN and JAC given: solution f(X) close to zero vector"
 
     ! Test with numerical differentiation
     x = 0.0
@@ -149,12 +124,11 @@ subroutine test_root_lm_poly (tests)
         -0.035508624284976d0, -0.020500913789493d0]
     call root_lm (fcn_poly, x, fx, ndiff=.true., work=work, res=res)
 
-    call tc%assert_true (res%status == NF_STATUS_OK, &
-        "FCN given: exit status")
-    call tc%assert_true (all_close (x, x_desired, atol=1.0d-8), &
-        "FCN given: solution close to Scipy")
-    call tc%assert_true (maxval(abs(res%fx)) < 1.0d-6, &
-        "FCN given: solution f(X) close to zero vector")
+    if (.not. (res%status == NF_STATUS_OK)) error stop "FCN given: exit status"
+    if (.not. (all_close (x, x_desired, atol=1.0d-8))) &
+        error stop "FCN given: solution close to Scipy"
+    if (.not. (maxval (abs (res%fx)) < 1.0d-6)) &
+        error stop "FCN given: solution f(X) close to zero vector"
 
 end subroutine
 

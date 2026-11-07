@@ -12,9 +12,6 @@ program test_ppoly
     use numfort_polynomial
     use numfort_interpolate
 
-    use fcore_testing, only: test_suite, test_case
-    use fcore_strings
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -23,32 +20,21 @@ program test_ppoly
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_bernstein_ppolyfit_input ()
+    call test_bernstein_ppolyfit ()
 
-    call tests%set_label ('Piecewise polynomial unit tests')
-
-    call test_bernstein_ppolyfit_input (tests)
-    call test_bernstein_ppolyfit (tests)
-
-    call test_power_ppolyval_input (tests)
-    call test_power_ppolyval_eval_input (tests)
-    call test_power_ppolyval_cubic (tests)
-
-    call tests%print ()
+    call test_power_ppolyval_input ()
+    call test_power_ppolyval_eval_input ()
+    call test_power_ppolyval_cubic ()
 
 end subroutine
 
-
-
-subroutine test_bernstein_ppolyfit (tests)
+subroutine test_bernstein_ppolyfit ()
     !*  Unit tests for fitting and evaluating piecewise polynomials wrt. the
     !   Bernstein basis.
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:), allocatable :: knots, coefs, coefs1, xx, xp, yp, yy
     real (PREC), dimension(:), allocatable :: fx, fpx
     real (PREC), dimension(:,:), allocatable :: ydat
@@ -59,8 +45,6 @@ subroutine test_bernstein_ppolyfit (tests)
     type (ppoly_bernstein) :: pp, pp1
     logical :: status_ok, values_ok
     type (status_t) :: status
-
-    tc => tests%add_test ('PPOLYFIT tests using Bernstein basis')
 
     n = 11
     xlb = 1.0d-8
@@ -81,14 +65,14 @@ subroutine test_bernstein_ppolyfit (tests)
 
     ! Fit piecewise polynomial to 0th and 1st derivative data
     call ppolyfit (pp, xx, ydat, k, knots, coefs, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        '1d API: Cubic: fit piecewise polynomial')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "1d API: Cubic: fit piecewise polynomial"
 
     allocate (yy(n))
     call ppolyval (pp, knots, coefs, xx, yy, status=status)
     values_ok = all_close (yy, fx, atol=1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: Cubic: evaluate at original knots')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: Cubic: evaluate at original knots"
 
     ! 1d API: Test separate find/eval routines
     allocate (ilbound(n), weight(n))
@@ -103,8 +87,8 @@ subroutine test_bernstein_ppolyfit (tests)
     status_ok = status_ok .and. (status == NF_STATUS_OK)
     values_ok = all_close (yy, fx, atol=1.0e-8_PREC)
 
-    call tc%assert_true (status_ok .and. values_ok, &
-        "1d API: Cubic: find/eval at original knots")
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "1d API: Cubic: find/eval at original knots"
 
     deallocate (yy, ilbound, weight)
 
@@ -117,8 +101,8 @@ subroutine test_bernstein_ppolyfit (tests)
         status_ok = status_ok .and. (status == NF_STATUS_OK)
     end do
     values_ok = all_close (yy, fx, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok, &
-        '0d API: Cubic: evaluate at original knots')
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: evaluate at original knots"
 
     ! 0d API: Separate find/eval routines
     status_ok = .true.
@@ -132,8 +116,8 @@ subroutine test_bernstein_ppolyfit (tests)
     end do
 
     values_ok = all_close (yy, fx, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok, &
-        "0d API: Cubic: find/eval at original knots")
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: find/eval at original knots"
 
     deallocate (yy)
 
@@ -145,8 +129,8 @@ subroutine test_bernstein_ppolyfit (tests)
     call fcn2 (xp, yp)
     call ppolyval (pp, knots, coefs, xp, yy, status=status)
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: Cubic: Evaluate at points other than knots')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: Cubic: Evaluate at points other than knots"
 
     ! 1d API: separate find/eval routines
     allocate (ilbound(nx), weight(nx))
@@ -160,8 +144,8 @@ subroutine test_bernstein_ppolyfit (tests)
     status_ok = status_ok .and. (status == NF_STATUS_OK)
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: Cubic: find/eval at points other than knots')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: Cubic: find/eval at points other than knots"
 
     deallocate (yy, ilbound, weight)
 
@@ -174,8 +158,8 @@ subroutine test_bernstein_ppolyfit (tests)
         status_ok = status_ok .and. (status == NF_STATUS_OK)
     end do
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok,  &
-        '0d API: Cubic: Evaluate at points other than knots')
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: Evaluate at points other than knots"
 
     ! 0d API: separate find/eval routines
     status_ok = .true.
@@ -190,15 +174,15 @@ subroutine test_bernstein_ppolyfit (tests)
     end do
 
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok,  &
-        '0d API: Cubic: find/eval at points other than knots')
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: find/eval at points other than knots"
 
     deallocate (yp, xp, yy)
 
     ! === Extrapolation ===
     nx = 17
     allocate (yp(nx), xp(nx), yy(nx))
-    call linspace(xp, xlb-1.0, xub+1.0)
+    call linspace (xp, xlb-1.0, xub+1.0)
     ! Some additional non-interior points
     xp(5) = xlb - 10.0_PREC
     xp(15) = xub + 10.0_PREC
@@ -207,8 +191,8 @@ subroutine test_bernstein_ppolyfit (tests)
     call ppolyval (pp, knots, coefs, xp, yy, ext=NF_INTERP_EVAL_EXTRAPOLATE, &
         status=status)
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '0d API: Cubic: Evaluate at non-interior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "0d API: Cubic: Evaluate at non-interior points"
     deallocate (yy)
 
     ! Scalar interface
@@ -221,8 +205,8 @@ subroutine test_bernstein_ppolyfit (tests)
         status_ok = status_ok .and. (status == NF_STATUS_OK)
     end do
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok, &
-        '0d API: Cubic: Evaluate at non-interior points')
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: Evaluate at non-interior points"
 
     ! === Replace non-interior points with some constant values ===
     left = -10000.0
@@ -235,8 +219,8 @@ subroutine test_bernstein_ppolyfit (tests)
     call ppolyval (pp, knots, coefs, xp, yy, ext=NF_INTERP_EVAL_CONST, &
         left=left, right=right, status=status)
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '0d API: Cubic: Evaluate, assign const to non-interior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "0d API: Cubic: Evaluate, assign const to non-interior points"
     deallocate (yy)
 
     ! Scalar interface
@@ -249,14 +233,14 @@ subroutine test_bernstein_ppolyfit (tests)
         status_ok = status_ok .and. (status == NF_STATUS_OK)
     end do
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok, &
-        '0d API: Cubic: Evaluate, assign const to non-interior points')
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: Evaluate, assign const to non-interior points"
 
     ! === Raise error on encountering non-interior points ===
     call ppolyval (pp, knots, coefs, xp, yy, ext=NF_INTERP_EVAL_ERROR, &
         status=status)
-    call tc%assert_true (status == NF_STATUS_BOUNDS_ERROR, &
-        '1d API: Cubic: Evaluate, raise error on non-interior points')
+    if (.not. (status == NF_STATUS_BOUNDS_ERROR)) &
+        error stop "1d API: Cubic: Evaluate, raise error on non-interior points"
 
     ! Replace non-interior points with boundary values
     call fcn2 (xp, yp)
@@ -271,8 +255,8 @@ subroutine test_bernstein_ppolyfit (tests)
     call ppolyval (pp, knots, coefs, xp, yy, ext=NF_INTERP_EVAL_BOUNDARY, &
         status=status)
     values_ok = all_close (yp, yy, atol=1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: Cubic: Evaluate, assign const to non-interior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: Cubic: Evaluate, assign const to non-interior points"
 
     deallocate (xp, yy, yp)
 
@@ -289,8 +273,8 @@ subroutine test_bernstein_ppolyfit (tests)
     call fcn2 (xp, fpx=yp)
     call ppolyval (pp1, knots, coefs1, xp, yy, status=status)
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: Cubic: Evaluate first derivative')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: Cubic: Evaluate first derivative"
     deallocate (yy)
 
     ! Scalar interface
@@ -302,8 +286,8 @@ subroutine test_bernstein_ppolyfit (tests)
         status_ok = status_ok .and. (status == NF_STATUS_OK)
     end do
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok, &
-        '0d API: Cubic: Evaluate first derivative')
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: Evaluate first derivative"
 
     ! === Extrapolate first derivative ===
     status = NF_STATUS_UNDEFINED
@@ -312,8 +296,8 @@ subroutine test_bernstein_ppolyfit (tests)
     ! Note: extrapolates by default
     call ppolyval (pp1, knots, coefs1, xp, yy, status=status)
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        '1d API: Cubic: Evaluate first derivative at non-interior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "1d API: Cubic: Evaluate first derivative at non-interior points"
     deallocate (yy)
 
     ! Scalar interface
@@ -325,28 +309,22 @@ subroutine test_bernstein_ppolyfit (tests)
         status_ok = status_ok .and. (status == NF_STATUS_OK)
     end do
     values_ok = all_close (yy, yp, atol=1.0e-8_PREC)
-    call tc%assert_true (status_ok .and. values_ok, &
-        '0d API: Cubic: Evaluate first derivaitve at non-interior points')
+    if (.not. (status_ok .and. values_ok)) &
+        error stop "0d API: Cubic: Evaluate first derivaitve at non-interior points"
 
     deallocate (xp, yp, yy)
 
 end subroutine
 
-
-
-subroutine test_bernstein_ppolyfit_input (tests)
+subroutine test_bernstein_ppolyfit_input ()
     !*  Unit tests for input checking for Bernstein basis fitting routines
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:), allocatable :: knots, coefs
     real (PREC), dimension(3) :: x
     real (PREC), dimension(2,3) :: y
     integer :: n, k, ncoefs, nknots
     type (ppoly_bernstein) :: pp
     type (status_t) :: status
-
-    tc => tests%add_test ('PPOLYFIT input checks for Bernstein basis')
 
     ! Incompatible data point arrays
     k = 3
@@ -359,31 +337,28 @@ subroutine test_bernstein_ppolyfit_input (tests)
     allocate (knots(nknots), coefs(ncoefs))
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x(1:2), y, k, knots, coefs, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Incompatible number of data points')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Incompatible number of data points"
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x, y(1:1,:), k, knots, coefs, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Too few derivatives for requested polynomial degree')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Too few derivatives for requested polynomial degree"
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x, y(:0,:), -1, knots, coefs, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid polynomial degree')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid polynomial degree"
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x, y, k, knots(1:nknots-1), coefs, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Incompatible KNOTS array size')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Incompatible KNOTS array size"
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x, y, k, knots, coefs(1:ncoefs-1), status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Incompatible COEFS array size')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Incompatible COEFS array size"
 end subroutine
-
-
 
 elemental subroutine fcn1 (x, fx, fpx)
     real (PREC), intent(in) :: x
@@ -393,7 +368,6 @@ elemental subroutine fcn1 (x, fx, fpx)
     if (present(fx)) fx = log(x)
     if (present(fpx)) fpx = 1.0_PREC / x
 end subroutine
-
 
 elemental subroutine fcn2 (x, fx, fpx)
     real (PREC), intent(in) :: x
@@ -412,12 +386,9 @@ elemental subroutine fcn2 (x, fx, fpx)
     if (present(fpx)) fpx = lfpx
 end subroutine
 
-
-
-subroutine test_power_ppolyval_cubic (tests)
+subroutine test_power_ppolyval_cubic ()
     !*  Unit tests for evaluating cubic polynomials and their derivatives
     !   using a power basis.
-    class (test_suite) :: tests
 
     type (ppoly) :: pp, pp_d1
     type (ppoly_bernstein) :: pp_bern, pp_bern_d1
@@ -431,10 +402,6 @@ subroutine test_power_ppolyval_cubic (tests)
     integer :: n, deg, nknots, ncoefs, ncoefs_bern
     type (status_t) :: status
     logical :: is_ok, values_ok
-
-    class (test_case), pointer :: tc
-
-    tc => tests%add_test ('Unit tests for eval. cubic polynomials (power basis)')
 
     ! Fit some polynomial using the Bernstein basis
     nknots = 20
@@ -467,8 +434,8 @@ subroutine test_power_ppolyval_cubic (tests)
     call ppolyval (pp, knots, coefs, knots, yy, status=status)
 
     values_ok = all_close (yy, fx, atol=1.0e-10_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Eval at original points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Eval at original points"
 
     deallocate (yy)
 
@@ -482,8 +449,8 @@ subroutine test_power_ppolyval_cubic (tests)
     call ppolyval (pp, knots, coefs, xx, yy, status=status)
 
     is_ok = all_close (yy, yy_bern, atol=1.0e-10_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. is_ok, &
-        'Eval at non-original points, comparing to Bernstein basis')
+    if (.not. (status == NF_STATUS_OK .and. is_ok)) &
+        error stop "Eval at non-original points, comparing to Bernstein basis"
 
     deallocate (xx, yy, yy_bern)
 
@@ -504,8 +471,8 @@ subroutine test_power_ppolyval_cubic (tests)
     call ppolyval (pp_d1, knots, coefs_d1, xx, yy, status=status)
 
     is_ok = all_close (yy, yy_bern, atol=1.0e-10_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. is_ok, &
-        'D1: Comparing to Bernstein value at non-original points')
+    if (.not. (status == NF_STATUS_OK .and. is_ok)) &
+        error stop "D1: Comparing to Bernstein value at non-original points"
 
     deallocate (xx, yy, yy_bern)
 
@@ -516,20 +483,16 @@ subroutine test_power_ppolyval_cubic (tests)
     ! Create contiguous array to be used as argument
     allocate (rwork(size(ydat, 2)), source=ydat(2,:))
     is_ok = all_close (yy, rwork, atol=1.0e-8_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. is_ok, &
-        'D1: Comparing to true values at original knots')
+    if (.not. (status == NF_STATUS_OK .and. is_ok)) &
+        error stop "D1: Comparing to true values at original knots"
 
     deallocate (rwork)
 
 end subroutine
 
-
-
-subroutine test_power_ppolyval_input (tests)
+subroutine test_power_ppolyval_input ()
     !*  Unit tests for input checking for Bernstein basis fitting routines
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:), allocatable :: knots, coefs
     real (PREC), dimension(:), allocatable :: x, y
     integer :: n, k, ncoefs, nknots, nx
@@ -539,8 +502,6 @@ subroutine test_power_ppolyval_input (tests)
     type (ppoly) :: pp
     type (status_t) :: status
     logical :: status_ok
-
-    tc => tests%add_test ('PPOLYVAL input checks for power basis')
 
     xi = 0.0
 
@@ -558,33 +519,35 @@ subroutine test_power_ppolyval_input (tests)
     ! 0d API
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, xi, yi, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "0d API: missing LEFT, RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "0d API: missing LEFT, RIGHT"
 
     ! 1d API
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x, y, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: missing LEFT, RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "1d API: missing LEFT, RIGHT"
 
     ! --- Missing LEFT ---
     ! 0d API
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, xi, yi, ext=ext, right=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "0d API: missing LEFT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "0d API: missing LEFT"
 
     ! 1d API
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x, y, ext=ext, right=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: missing LEFT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "1d API: missing LEFT"
 
     ! --- Missing RIGHT ---
     ! 0d API
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, xi, yi, ext=ext, left=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "0d API: missing RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "0d API: missing RIGHT"
 
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x, y, ext=ext, left=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: missing RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "1d API: missing RIGHT"
 
     deallocate (knots, coefs, x, y)
 
@@ -596,14 +559,16 @@ subroutine test_power_ppolyval_input (tests)
     ! 0d API
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, xi, yi, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "0d API: Invalid KNOTS array size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "0d API: Invalid KNOTS array size"
 
     ! 1d API
     nx = 1
     allocate (x(nx), y(nx))
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: Invalid KNOTS array size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "1d API: Invalid KNOTS array size"
 
     deallocate (knots, coefs, x, y)
 
@@ -632,7 +597,7 @@ subroutine test_power_ppolyval_input (tests)
         deallocate (coefs)
     end do
 
-    call tc%assert_true (status_ok, "0d API: Non-conformable KNOTS, COEFS")
+    if (.not. (status_ok)) error stop "0d API: Non-conformable KNOTS, COEFS"
 
     ! 1d API
     nx = 2
@@ -657,7 +622,7 @@ subroutine test_power_ppolyval_input (tests)
         deallocate (coefs)
     end do
 
-    call tc%assert_true (status_ok, "1d API: Non-conformable KNOTS, COEFS")
+    if (.not. (status_ok)) error stop "1d API: Non-conformable KNOTS, COEFS"
 
     deallocate (knots, x, y)
 
@@ -672,18 +637,14 @@ subroutine test_power_ppolyval_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: Non-conformable X, Y")
-
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "1d API: Non-conformable X, Y"
 
 end subroutine
 
-
-
-subroutine test_power_ppolyval_eval_input (tests)
+subroutine test_power_ppolyval_eval_input ()
     !*  Unit tests for input checking for Bernstein basis fitting routines
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:), allocatable :: coefs, weight
     real (PREC), dimension(:), allocatable :: y
     integer, dimension(:), allocatable :: ilbound
@@ -694,8 +655,6 @@ subroutine test_power_ppolyval_eval_input (tests)
     type (ppoly) :: pp
     type (status_t) :: status
     logical :: status_ok
-
-    tc => tests%add_test ('PPOLYVAL_EVAL input checks for power basis')
 
     ilb = 1
     wgt = 0.0
@@ -713,34 +672,36 @@ subroutine test_power_ppolyval_eval_input (tests)
     ! 0d API
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilb, wgt, coefs, yi, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "0d API: missing LEFT, RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "0d API: missing LEFT, RIGHT"
 
     ! 1d API
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilbound, weight, coefs, y, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: missing LEFT, RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "1d API: missing LEFT, RIGHT"
 
     ! --- Missing LEFT ---
     ! 0d API
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilb, wgt, coefs, yi, ext=ext, right=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "0d API: missing LEFT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "0d API: missing LEFT"
 
     ! 1d API
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilbound, weight, coefs, y, ext=ext, right=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: missing LEFT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "1d API: missing LEFT"
 
     ! --- Missing RIGHT ---
     ! 0d API
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilb, wgt, coefs, yi, ext=ext, left=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "0d API: missing RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "0d API: missing RIGHT"
 
     ! 1d API
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilbound, weight, coefs, y, ext=ext, left=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: missing RIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "1d API: missing RIGHT"
 
     deallocate (ilbound, weight, coefs, y)
 
@@ -769,7 +730,7 @@ subroutine test_power_ppolyval_eval_input (tests)
         deallocate (coefs)
     end do
 
-    call tc%assert_true (status_ok, "0d API: Invalid COEFS array size")
+    if (.not. (status_ok)) error stop "0d API: Invalid COEFS array size"
 
     ! 1d API
     nx = 5
@@ -795,7 +756,7 @@ subroutine test_power_ppolyval_eval_input (tests)
         deallocate (coefs)
     end do
 
-    call tc%assert_true (status_ok, "1d API: Invalid COEFS array size")
+    if (.not. (status_ok)) error stop "1d API: Invalid COEFS array size"
 
     deallocate (ilbound, weight, y)
 
@@ -811,7 +772,8 @@ subroutine test_power_ppolyval_eval_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilbound, weight, coefs, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: Non-conformable ILBOUND, WEIGHT")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "1d API: Non-conformable ILBOUND, WEIGHT"
 
     deallocate (coefs, ilbound, weight, y)
 
@@ -827,11 +789,11 @@ subroutine test_power_ppolyval_eval_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyval_eval (pp, ilbound, weight, coefs, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "1d API: Non-conformable ILBOUND, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "1d API: Non-conformable ILBOUND, Y"
 
     deallocate (coefs, ilbound, weight, y)
 
 end subroutine
-
 
 end

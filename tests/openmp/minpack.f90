@@ -1,6 +1,5 @@
 
 
-
 program test_minpack
     !*  Unit tests for MINPACK wrapper routines called from OpenMP
     !   parallel regions.
@@ -10,33 +9,22 @@ program test_minpack
     use numfort_common, workspace => workspace_real64
     use numfort_optimize, optim_result => optim_result_real64
 
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
 
-    call test_all()
+    call test_all ()
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("Unit tests for MINPACK wrapper in OpenMP mode")
-
-    call test_hybrj (tests)
-
-    call tests%print()
+    call test_hybrj ()
 
 end subroutine
 
 
-
-subroutine test_hybrj (tests)
-    class (test_suite) :: tests
+subroutine test_hybrj ()
 
     real (PREC), dimension(:,:), allocatable :: xx, fxx
     real (PREC), dimension(:), allocatable :: x, fx
@@ -44,10 +32,6 @@ subroutine test_hybrj (tests)
     integer :: m, n, i
     logical :: values_ok
     real (PREC), parameter :: x0(3) = 50.0
-
-    class (test_case), pointer :: tc
-
-    tc => tests%add_test ("Unit tests for HYBRJ")
 
     ! Compute in serial mode
 
@@ -73,10 +57,9 @@ subroutine test_hybrj (tests)
             .and. all(abs(fxx(:,i) - fx) < 1.0e-12_PREC)
     end do
 
-    call tc%assert_true (values_ok, 'Run same problem in parallel')
+    if (.not. (values_ok)) error stop "Run same problem in parallel"
 
 end subroutine
-
 
 
 subroutine test_hybrj_dispatch (xx, fxx)
@@ -102,7 +85,6 @@ subroutine test_hybrj_dispatch (xx, fxx)
 end subroutine
 
 
-
 pure subroutine fcn1_jac (x, fx, jac, task)
     real (PREC), dimension(:), intent(in), contiguous :: x
     real (PREC), dimension(:), intent(out), contiguous :: fx
@@ -119,6 +101,5 @@ pure subroutine fcn1_jac (x, fx, jac, task)
         jac(3, :) = [5.0d0, -2.0d0, -2*x(3)]
     end if
 end subroutine
-
 
 end

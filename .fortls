@@ -9,9 +9,6 @@
   "src/polynomial/include",
   "src/stats/include"
   ],
-  "ext_source_dirs": [
-    "/home/richard/repos/fortran-corelib/src/fcore"
-  ],
   "lowercase_intrinsics": true,
   "pp_defs": {"PREC": "real64"}
 }

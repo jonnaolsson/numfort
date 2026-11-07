@@ -11,8 +11,6 @@ program test_numfort_stats_dmvnorm
 
     use blas_interfaces, only: BLAS_GEMM => GEMM
 
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -21,34 +19,21 @@ program test_numfort_stats_dmvnorm
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ('numfort_stats_dmvnorm unit tests')
-
-    call test_rvs (tests)
-
-    call tests%print ()
+    call test_rvs ()
 
 end subroutine
 
-
-
-subroutine test_rvs (tests)
+subroutine test_rvs ()
     !*  Unit tests for MV normal random number generator
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: xarr, vcv, vcv_hat, corr_x
     real (PREC), dimension(:), allocatable :: mean_x, xvec, std_x, mean_hat
     integer :: nobs, nvars, i, j, dim
     type (dmvnorm) :: mvnorm
     type (status_t) :: status
     logical :: vcv_ok, mean_ok
-
-    tc => tests%add_test ('Random number generator tests')
 
     call set_seed (5678)
 
@@ -61,43 +46,43 @@ subroutine test_rvs (tests)
     status = NF_STATUS_UNDEFINED
     ! Call without any mean_x or VCV parameters
     call rvs (mvnorm, xvec, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS without MEAN, COV parameters')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS without MEAN, COV parameters"
 
     ! Call without any VCV parameter
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xvec, mean=mean_x, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS without MEAN parameter')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS without MEAN parameter"
 
     ! Call without any mean_x parameter
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xvec, cov=vcv, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS without COV parameter')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS without COV parameter"
 
     ! Call with non-conformable dimensions
     deallocate (xvec)
     allocate (xvec(nvars+1))
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xvec, mean=mean_x, cov=vcv, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS with non-conformable X parameter')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS with non-conformable X parameter"
 
     ! Call with non-conformable COV argument
     deallocate (xvec, vcv)
     allocate (xvec(nvars), vcv(nvars,nvars+1))
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xvec, mean=mean_x, cov=vcv, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS with non-conformable VCV parameter')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS with non-conformable VCV parameter"
 
     deallocate (vcv)
     allocate (vcv(nvars,nvars), source=0.0_PREC)
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xvec, mean=mean_x, cov=vcv, tol=-1.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS with invalid TOL argument')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS with invalid TOL argument"
 
     deallocate (xvec, mean_x, vcv)
 
@@ -108,26 +93,26 @@ subroutine test_rvs (tests)
     allocate (xarr(nvars,nobs), mean_x(nvars), vcv(nvars,nvars))
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xarr, mean=mean_x, cov=vcv, dim=0, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS with invalid DIM=0 argument')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS with invalid DIM=0 argument"
 
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xarr, mean=mean_x, cov=vcv, dim=3, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS with invalid DIM=3 argument')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS with invalid DIM=3 argument"
 
     ! Check with DIM that does not match the shape of XARR
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xarr, mean=mean_x, cov=vcv, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS with DIM argument that does not match X shape')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS with DIM argument that does not match X shape"
 
     deallocate (xarr)
     allocate (xarr(nobs,nvars))
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xarr, mean=mean_x, cov=vcv, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Calling RVS with DIM argument that does not match X shape')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Calling RVS with DIM argument that does not match X shape"
 
     deallocate (xarr, mean_x, vcv)
 
@@ -141,8 +126,8 @@ subroutine test_rvs (tests)
     call dist_set_params (mvnorm, mean_x, vcv)
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xvec, status=status)
-    call tc%assert_true (status == NF_STATUS_oK, &
-        'Calling RVS with 1d-interface for 1 variable')
+    if (.not. (status == NF_STATUS_oK)) &
+        error stop "Calling RVS with 1d-interface for 1 variable"
     deallocate (xvec, mean_x, vcv)
 
     ! Check call with n-dimensional vector
@@ -155,8 +140,8 @@ subroutine test_rvs (tests)
     call diag (std_x, vcv)
     status = NF_STATUS_UNDEFINED
     call rvs (mvnorm, xvec, mean_x, vcv, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'Calling RVS with 1d-interface for 3-dimensional random variable')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Calling RVS with 1d-interface for 3-dimensional random variable"
     deallocate (xvec, mean_x, vcv, std_x)
 
     ! === Calls to 2d interface ===
@@ -180,8 +165,8 @@ subroutine test_rvs (tests)
     vcv_ok = all_close (vcv_hat, vcv, rtol=0.0_PREC, atol=1.0e-2_PREC)
     mean_ok = all_close (mean_hat, mean_x, rtol=0.0_PREC, atol=1.0e-2_PREC)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. mean_ok .and. vcv_ok, &
-        'Calling RVS with independent VCV')
+    if (.not. (status == NF_STATUS_OK .and. mean_ok .and. vcv_ok)) &
+        error stop "Calling RVS with independent VCV"
 
     deallocate (xarr, mean_x, std_x, vcv)
     deallocate (mean_hat, vcv_hat)
@@ -221,8 +206,8 @@ subroutine test_rvs (tests)
     vcv_ok = all_close (vcv_hat, vcv, rtol=0.0_PREC, atol=1.0e-2_PREC)
     mean_ok = all_close (mean_hat, mean_x, rtol=0.0_PREC, atol=1.0e-2_PREC)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. mean_ok .and. vcv_ok, &
-        'Calling RVS with partially interdependent random variables')
+    if (.not. (status == NF_STATUS_OK .and. mean_ok .and. vcv_ok)) &
+        error stop "Calling RVS with partially interdependent random variables"
 
     deallocate (xarr, vcv, mean_x, std_x, corr_x)
     deallocate (mean_hat, vcv_hat)
@@ -240,7 +225,7 @@ subroutine test_rvs (tests)
     ! Abuse VCV_HAT as workspace to construct VCV matrix as XX'
     call random_number (vcv_hat)
     vcv_hat(:,:) = 2.0 * (vcv_hat - 0.5)
-    call BLAS_GEMM (transa='N', transb='T', m=nvars, n=nvars, k=nvars, &
+    call BLAS_GEMM (transa="N", transb="T", m=nvars, n=nvars, k=nvars, &
         alpha=1.0_PREC, a=vcv_hat, lda=nvars, b=vcv_hat, ldb=nvars, &
         beta=1.0_PREC, c=vcv, ldc=nvars)
     ! Diagnostics: compute implied corr. matrix
@@ -261,12 +246,9 @@ subroutine test_rvs (tests)
     vcv_ok = all_close (vcv_hat, vcv, rtol=0.0_PREC, atol=1.0e-2_PREC)
     mean_ok = all_close (mean_hat, mean_x, rtol=0.0_PREC, atol=1.0e-2_PREC)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. mean_ok .and. vcv_ok, &
-        'Calling RVS with fully interdependent random variables')
-
-
+    if (.not. (status == NF_STATUS_OK .and. mean_ok .and. vcv_ok)) &
+        error stop "Calling RVS with fully interdependent random variables"
 
 end subroutine
-
 
 end program

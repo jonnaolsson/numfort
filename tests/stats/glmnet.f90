@@ -1,6 +1,5 @@
 
 
-
 program test_numfort_stats_glmnet
 
     use, intrinsic :: iso_fortran_env
@@ -16,9 +15,6 @@ program test_numfort_stats_glmnet
 
     use blas95, only: BLAS_GEMV => GEMV
 
-    use fcore_testing
-    use fcore_strings
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -27,31 +23,22 @@ program test_numfort_stats_glmnet
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ('GLMNET unit tests')
-
-    call test_equiv (tests)
+    call test_equiv ()
     ! Test special case that triggers different code paths
-    call test_equiv_2d (tests, nlhs=1)
-    call test_equiv_2d (tests, nlhs=3)
+    call test_equiv_2d (nlhs=1)
+    call test_equiv_2d (nlhs=3)
     ! Test with more LHS than RHS variables (routine uses 10 RHS variables)
-    call test_equiv_2d (tests, nlhs=13)
+    call test_equiv_2d (nlhs=13)
 
-    call test_ridge_1d_args (tests)
-    call test_ridge_2d_args (tests)
-    call test_ridge_1d (tests)
-
-    call tests%print ()
+    call test_ridge_1d_args ()
+    call test_ridge_2d_args ()
+    call test_ridge_1d ()
 
 end subroutine
 
-
-
-subroutine test_equiv (tests)
+subroutine test_equiv ()
     !*  Unit tests that should all yield same results for different
     !   sets of X and y inputs which are equivalent after applying
     !   the required transformations, e.g.
@@ -60,9 +47,7 @@ subroutine test_equiv (tests)
     !       - Adding constants to X which are dropped in ENET_*
     !       - Manually passing the grid of ALPHAS which would be created in
     !           ENET_CV
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: X, X_alt, X_T, Y_multi
     real (PREC), dimension(:), allocatable :: coefs, coefs_true, coefs_default
     real (PREC), dimension(:), allocatable, target :: y, y_alt
@@ -81,11 +66,9 @@ subroutine test_equiv (tests)
     type (status_t) :: status
     type (lm_config) :: conf_lm
     type (enet_config) :: conf
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol=1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     logical :: values_ok
     logical, dimension(:), allocatable :: mask, mask_lhs
-
-    tc => tests%add_test ('Test equivalent transformations of X, y')
 
     call set_seed (1234)
 
@@ -157,14 +140,14 @@ subroutine test_equiv (tests)
     status = NF_STATUS_UNDEFINED
     call enet_cv (conf, X, y, alpha_default, l1_ratio, rmse=rmse_default, &
         status=status)
-    call tc%assert_true (status == NF_STATUS_OK, 'ENET_CV: default config')
+    if (.not. (status == NF_STATUS_OK)) error stop "ENET_CV: default config"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs_default(Nvars))
     status = NF_STATUS_UNDEFINED
     call enet_fit (conf, X, y, alpha_default, l1_ratio, intercept_default, &
         coefs_default, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, 'ENET_FIT: default config')
+    if (.not. (status == NF_STATUS_OK)) error stop "ENET_FIT: default config"
 
     ! --- Default CV, multi-LHS ---
 
@@ -173,8 +156,8 @@ subroutine test_equiv (tests)
     call enet_cv (conf, X, ptr_Y, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: default config')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: default config"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs_multi(Nvars,1), source=huge(0.0_PREC))
@@ -184,8 +167,8 @@ subroutine test_equiv (tests)
         coefs_multi, status=status)
     values_ok = all_close(intercept_multi(1), intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs_multi(:,1), coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: default config')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: default config"
 
     ! Force multi-outcome code path even for single-outcome model
     conf%force_multi = .true.
@@ -195,8 +178,8 @@ subroutine test_equiv (tests)
     call enet_cv (conf, X, ptr_Y, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: default config, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: default config, multi-outcome code path"
 
     ! Fit coefs using CV'd alpha
     status = NF_STATUS_UNDEFINED
@@ -206,8 +189,8 @@ subroutine test_equiv (tests)
         coefs_multi, status=status)
     values_ok = all_close(intercept_multi(1), intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs_multi(:,1), coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: default config, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: default config, multi-outcome code path"
 
     deallocate (coefs_multi, intercept_multi)
 
@@ -223,8 +206,8 @@ subroutine test_equiv (tests)
 
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed X"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs(Nvars))
@@ -233,8 +216,8 @@ subroutine test_equiv (tests)
 
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X"
 
     ! Multi-outcomes, transposed X and Y
     ! Force multi-outcome code path even for single-outcome model
@@ -246,8 +229,8 @@ subroutine test_equiv (tests)
     call enet_cv (conf, X_T, ptr_Y_T, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: transposed X and Y, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: transposed X and Y, multi-outcome code path"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs_multi(Nvars,1), source=huge(0.0_PREC))
@@ -257,8 +240,8 @@ subroutine test_equiv (tests)
         coefs_multi, status=status)
     values_ok = all_close(intercept_multi(1), intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs_multi(:,1), coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: transposed X and Y, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: transposed X and Y, multi-outcome code path"
 
     deallocate (coefs, X_T)
     deallocate (coefs_multi, intercept_multi)
@@ -277,7 +260,7 @@ subroutine test_equiv (tests)
     ! Create the same grid of ALPHAS used for CV
     call create_alpha_grid_cv (conf, X, y, l1_ratio, folds_ifrom, folds_size, &
         alphas, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, 'Create alpha grid for CV')
+    if (.not. (status == NF_STATUS_OK)) error stop "Create alpha grid for CV"
 
     ! Call with pre-specified ALPHAS
     status = NF_STATUS_UNDEFINED
@@ -289,8 +272,8 @@ subroutine test_equiv (tests)
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: Use pre-specified ALPHAS')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: Use pre-specified ALPHAS"
 
     ! Call with randomly-ordered alphas
     allocate (iorder(conf%alpha_n))
@@ -310,8 +293,8 @@ subroutine test_equiv (tests)
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: Use pre-specified, randomly ordered ALPHAS')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: Use pre-specified, randomly ordered ALPHAS"
 
     deallocate (rwork)
 
@@ -339,8 +322,8 @@ subroutine test_equiv (tests)
 
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: add. const. in X"
 
     allocate (coefs(Nvars + Nconst))
 
@@ -350,8 +333,8 @@ subroutine test_equiv (tests)
     values_ok = all(pack(coefs, .not. mask) == 0.0_PREC) .and. &
         all_close (pack(coefs, mask), coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X"
 
     ! Multi-outcomes
     ! Force multi-outcome code path even for single-outcome model
@@ -362,8 +345,8 @@ subroutine test_equiv (tests)
     call enet_cv (conf, X_alt, ptr_Y, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: add. const. in X, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: add. const. in X, multi-outcome code path"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs_multi(Nvars+Nconst,1), source=huge(0.0_PREC))
@@ -373,8 +356,8 @@ subroutine test_equiv (tests)
         coefs_multi, status=status)
     values_ok = all_close(intercept_multi(1), intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (pack(coefs_multi(:,1), mask), coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: add. const. in X, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: add. const. in X, multi-outcome code path"
 
     deallocate (coefs_multi, intercept_multi)
 
@@ -392,8 +375,8 @@ subroutine test_equiv (tests)
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed X, add. const.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed X, add. const."
 
     ! Fit coefs using CV'd alpha
     status = NF_STATUS_UNDEFINED
@@ -405,8 +388,8 @@ subroutine test_equiv (tests)
         all_close (pack(coefs, mask), coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X, add. const.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X, add. const."
 
     ! Multi-outcomes
     ! Force multi-outcome code path even for single-outcome model
@@ -418,8 +401,8 @@ subroutine test_equiv (tests)
     call enet_cv (conf, X_T, ptr_Y_T, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: X^T with constants, Y^T, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: X^T with constants, Y^T, multi-outcome code path"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs_multi(Nvars+Nconst,1), source=huge(0.0_PREC))
@@ -429,8 +412,8 @@ subroutine test_equiv (tests)
         coefs_multi, status=status)
     values_ok = all_close(intercept_multi(1), intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (pack(coefs_multi(:,1), mask), coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: X^T with constants, Y^T, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: X^T with constants, Y^T, multi-outcome code path"
 
     deallocate (coefs_multi, intercept_multi)
 
@@ -462,8 +445,8 @@ subroutine test_equiv (tests)
     ! RMSEs across chunks will differ, and hence in principle a different
     ! point on the ALPHAS grid could be optiomal.
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: add. const. in X, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: add. const. in X, pre-centered variables"
 
     status = NF_STATUS_UNDEFINED
     intercept = huge(0.0_PREC)
@@ -473,8 +456,8 @@ subroutine test_equiv (tests)
     values_ok = all(pack(coefs, .not. mask) == 0.0_PREC) .and. &
         all_close (pack(coefs, mask), coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, 0.0_PREC, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, pre-centered variables"
 
     ! Multi-outcomes
 
@@ -488,8 +471,9 @@ subroutine test_equiv (tests)
         alphas=alphas, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: X with constants, pre-centered, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: X with constants, pre-centered, multi-outcome " // &
+            "code path"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs_multi(Nvars+Nconst,1), source=huge(0.0_PREC))
@@ -499,8 +483,8 @@ subroutine test_equiv (tests)
         coefs_multi, status=status)
     values_ok = all_close(intercept_multi(1), 0.0_PREC, atol=atol, rtol=rtol) .and. &
         all_close (pack(coefs_multi(:,1), mask), coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: X^T with constants, Y^T, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: X^T with constants, Y^T, multi-outcome code path"
 
     deallocate (coefs_multi, intercept_multi)
 
@@ -530,8 +514,8 @@ subroutine test_equiv (tests)
     ! RMSEs across chunks will differ, and hence in principle a different
     ! point on the ALPHAS grid could be optiomal.
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: add. const. in X, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: add. const. in X, pre-centered, pre-scaled variables"
 
     status = NF_STATUS_UNDEFINED
     intercept = huge(0.0_PREC)
@@ -547,8 +531,8 @@ subroutine test_equiv (tests)
         all_close (pack(coefs, mask), coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, 0.0_PREC, atol=atol, rtol=rtol)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, pre-centered, pre-scaled variables"
 
     ! Multi-outcomes
 
@@ -561,8 +545,9 @@ subroutine test_equiv (tests)
         alphas=alphas, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: X with constants, pre-centered, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: X with constants, pre-centered, multi-outcome " // &
+            "code path"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs_multi(Nvars+Nconst,1), source=huge(0.0_PREC))
@@ -580,8 +565,8 @@ subroutine test_equiv (tests)
 
     values_ok = all_close(intercept_multi(1), 0.0_PREC, atol=atol, rtol=rtol) .and. &
         all_close (pack(coefs_multi(:,1), mask), coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: X^T with constants, Y^T, multi-outcome code path')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: X^T with constants, Y^T, multi-outcome code path"
 
     deallocate (coefs_multi, intercept_multi)
 
@@ -606,8 +591,8 @@ subroutine test_equiv (tests)
     call enet_cv (conf, X_T, Y_multi, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV_MULTI: X^T with constants, Y^T with constants')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV_MULTI: X^T with constants, Y^T with constants"
 
     allocate (coefs_multi(Nvars+Nconst,Nlhs), source=huge(0.0_PREC))
     allocate (intercept_multi(Nlhs), source=huge(0.0_PREC))
@@ -620,14 +605,12 @@ subroutine test_equiv (tests)
         .and. all_close (pack(coefs_multi(:,2), mask), coefs_default, atol=atol, rtol=rtol) &
         .and. all(coefs_multi(:,1) == 0.0_PREC) &
         .and. all(coefs_multi(:,3) == 0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT_MULTI: X^T with constants, Y^T with constants')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT_MULTI: X^T with constants, Y^T with constants"
 
 end subroutine
 
-
-
-subroutine test_equiv_2d (tests, nlhs)
+subroutine test_equiv_2d (nlhs)
     !*  Unit tests that should all yield same results for different
     !   sets of X and multiple Y inputs which are equivalent after applying
     !   the required transformations, e.g.
@@ -636,10 +619,8 @@ subroutine test_equiv_2d (tests, nlhs)
     !       - Adding constants to X which are dropped in ENET_*
     !       - Manually passing the grid of ALPHAS which would be created in
     !           ENET_CV
-    class (test_suite) :: tests
     integer, intent(in) :: Nlhs
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: X, X_alt, X_T
     real (PREC), dimension(:,:), allocatable :: coefs, coefs_T, coefs_true, coefs_default
     real (PREC), dimension(:,:), allocatable :: coefs_all, coefs_const
@@ -658,13 +639,11 @@ subroutine test_equiv_2d (tests, nlhs)
     type (lm_config) :: conf_lm
     type (enet_result) :: res
     type (enet_config) :: conf
-    real (PREC), parameter :: atol = 1.0e-12_PREC, rtol=1.0e-4_PREC
+    real (PREC), parameter :: atol=1.0e-12_PREC, rtol=1.0e-4_PREC
     logical :: values_ok
     logical, dimension(:), allocatable :: mask, mask_lhs
     integer, parameter :: CV_N = 50
     real (PREC), parameter :: ALPHA_EPS = 1.0e-5_PREC
-
-    tc => tests%add_test ('ENET[2D]: Test equivalent transformations of X, Y')
 
     call set_seed (1234)
 
@@ -687,15 +666,14 @@ subroutine test_equiv_2d (tests, nlhs)
     conf = enet_config (cv_n=CV_N, alpha_eps=ALPHA_EPS)
     status = NF_STATUS_UNDEFINED
     call enet_cv (conf, X, Y, alpha_default, l1_ratio, rmse=rmse_default, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, 'ENET_CV: default config')
+    if (.not. (status == NF_STATUS_OK)) error stop "ENET_CV: default config"
 
     ! Fit coefs using CV'd alpha
     status = NF_STATUS_UNDEFINED
     allocate (coefs_default(Nrhs,Nlhs), intercept_default(Nlhs))
     call enet_fit (conf, X, Y, alpha_default, l1_ratio, intercept_default, &
         coefs_default, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, 'ENET_FIT: default config')
-
+    if (.not. (status == NF_STATUS_OK)) error stop "ENET_FIT: default config"
 
     ! --- Pre-specified ALPHA grid ---
 
@@ -709,7 +687,7 @@ subroutine test_equiv_2d (tests, nlhs)
     conf = enet_config (cv_n=CV_N, alpha_eps=ALPHA_EPS)
     call create_alpha_grid_cv (conf, X, Y, l1_ratio, folds_ifrom, folds_size, &
         alphas, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, 'Create alpha grid for CV')
+    if (.not. (status == NF_STATUS_OK)) error stop "Create alpha grid for CV"
 
     ! --- Transposed X ---
 
@@ -722,8 +700,8 @@ subroutine test_equiv_2d (tests, nlhs)
 
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed X"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs(Nrhs,Nlhs), intercept(Nlhs))
@@ -732,8 +710,8 @@ subroutine test_equiv_2d (tests, nlhs)
 
     values_ok = all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X"
     deallocate (coefs, intercept)
 
     ! Fit using result object
@@ -743,8 +721,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_fit (conf, X_T, Y, alpha, l1_ratio, res=res, status=status)
     values_ok = all_close (res%coefs_multi, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (res%intercept_multi, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X, RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X, RES present"
 
     ! --- Transposed Y ---
 
@@ -755,8 +733,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_cv (conf, X, Y_T, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed Y')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed Y"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs(Nrhs,Nlhs), intercept(Nlhs))
@@ -764,8 +742,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_fit (conf, X, Y_T, alpha, l1_ratio, intercept, coefs, status=status)
     values_ok = all_close(intercept, intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed Y')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed Y"
     deallocate (coefs, intercept)
 
     ! Fit using result object
@@ -774,8 +752,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_fit (conf, X, Y_T, alpha, l1_ratio, res=res, status=status)
     values_ok = all_close (res%coefs_multi, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (res%intercept_multi, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed Y, RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed Y, RES present"
 
     ! --- Transposed X and Y ---
 
@@ -786,8 +764,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_cv (conf, X_T, Y_T, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (rmse, rmse_default, atol=atol, rtol=rtol) .and. &
         all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed X and Y')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed X and Y"
 
     ! Fit coefs using CV'd alpha
     allocate (coefs(Nrhs,Nlhs), intercept(Nlhs))
@@ -795,8 +773,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_fit (conf, X_T, Y_T, alpha, l1_ratio, intercept, coefs, status=status)
     values_ok = all_close(intercept, intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X and Y')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X and Y"
     deallocate (coefs, intercept)
 
     ! Fit using result object
@@ -805,8 +783,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_fit (conf, X_T, Y_T, alpha, l1_ratio, res=res, status=status)
     values_ok = all_close (res%coefs_multi, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (res%intercept_multi, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X and Y, RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X and Y, RES present"
 
     ! ---- Transposed COEFS ----
 
@@ -817,8 +795,8 @@ subroutine test_equiv_2d (tests, nlhs)
     coefs(:,:) = transpose (coefs_T)
     values_ok = all_close(intercept, intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS"
 
     ! Transposed COEFS, RES present
     coefs_T(:,:) = huge(0.0_PREC)
@@ -829,11 +807,10 @@ subroutine test_equiv_2d (tests, nlhs)
         .and. all_close (coefs, coefs_default, atol=atol, rtol=rtol) &
         .and. all_close (res%intercept_multi, intercept, atol=atol, rtol=rtol) &
         .and. all_close (res%coefs_multi, coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS; RES, COEFS and INTERCEPT present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS; RES, COEFS and INTERCEPT present"
 
     deallocate (coefs_T, coefs, intercept)
-
 
     ! --- Transposed COEFS, transposed X ---
 
@@ -844,10 +821,9 @@ subroutine test_equiv_2d (tests, nlhs)
     coefs(:,:) = transpose (coefs_T)
     values_ok = all_close(intercept, intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS, transposed X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS, transposed X"
     deallocate (coefs_T, coefs, intercept)
-
 
     ! --- Transposed COEFS, transposed Y ---
 
@@ -858,10 +834,9 @@ subroutine test_equiv_2d (tests, nlhs)
     coefs(:,:) = transpose (coefs_T)
     values_ok = all_close(intercept, intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS, transposed Y')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS, transposed Y"
     deallocate (coefs_T, coefs, intercept)
-
 
     ! --- Transposed COEFS, transposed X and Y---
 
@@ -872,10 +847,9 @@ subroutine test_equiv_2d (tests, nlhs)
     coefs(:,:) = transpose (coefs_T)
     values_ok = all_close(intercept, intercept_default, atol=atol, rtol=rtol) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS, transposed X and Y')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS, transposed X and Y"
     deallocate (coefs_T, coefs, intercept)
-
 
     ! --- Create X with constants ---
 
@@ -907,8 +881,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_cv (conf, X_alt, Y, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: add. const. in X"
 
     allocate (coefs_all(Nrhs+Nconst, Nlhs), intercept(Nlhs))
 
@@ -921,8 +895,8 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X"
 
     deallocate (coefs, coefs_all, coefs_const, intercept)
 
@@ -935,8 +909,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_cv (conf, X_T, Y, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed X, add. const.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed X, add. const."
 
     allocate (coefs_all(Nrhs+Nconst,Nlhs), intercept(Nlhs))
     status = NF_STATUS_UNDEFINED
@@ -949,8 +923,8 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X, add. const.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X, add. const."
     deallocate (coefs, coefs_all, coefs_const, intercept)
 
     ! Call with RESULT object
@@ -966,8 +940,8 @@ subroutine test_equiv_2d (tests, nlhs)
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (res%intercept_multi, intercept_default, atol=atol, rtol=rtol)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X, add. const., RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X, add. const., RES present"
 
     deallocate (coefs, coefs_const)
 
@@ -980,8 +954,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_cv (conf, X_alt, Y_T, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed Y, add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed Y, add. const. in X"
 
     allocate (coefs_all(Nrhs+Nconst,Nlhs), intercept(Nlhs))
     status = NF_STATUS_UNDEFINED
@@ -994,10 +968,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed Y, add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed Y, add. const. in X"
     deallocate (coefs, coefs_all, coefs_const, intercept)
-
 
     ! --- X with constants, transposed X and Y ---
 
@@ -1008,8 +981,8 @@ subroutine test_equiv_2d (tests, nlhs)
     call enet_cv (conf, X_T, Y_T, alpha, l1_ratio, rmse=rmse, status=status)
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol) .and. &
         all_close (rmse, rmse_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: transposed Y, add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: transposed Y, add. const. in X"
 
     allocate (coefs_all(Nrhs+Nconst,Nlhs), intercept(Nlhs))
     status = NF_STATUS_UNDEFINED
@@ -1021,10 +994,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed X and Y; add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed X and Y; add. const. in X"
     deallocate (coefs, coefs_all, coefs_const, intercept)
-
 
     ! --- X with constants, transposed COEFS ---
 
@@ -1041,10 +1013,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS, add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS, add. const. in X"
     deallocate (coefs, coefs_all, coefs_T, coefs_const, intercept)
-
 
     ! --- X with constants, transposed COEFS and X ---
 
@@ -1061,10 +1032,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS and X, add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS and X, add. const. in X"
     deallocate (coefs, coefs_all, coefs_T, coefs_const, intercept)
-
 
     ! --- X with constants, transposed COEFS and Y ---
 
@@ -1081,10 +1051,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS and Y, add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS and Y, add. const. in X"
     deallocate (coefs, coefs_all, coefs_T, coefs_const, intercept)
-
 
     ! --- X with constants, transposed COEFS, X and Y ---
 
@@ -1101,10 +1070,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all_close (intercept, intercept_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: transposed COEFS, X and Y; add. const. in X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: transposed COEFS, X and Y; add. const. in X"
     deallocate (coefs, coefs_all, coefs_T, coefs_const, intercept)
-
 
     ! --- Pre-center variables ---
 
@@ -1137,8 +1105,8 @@ subroutine test_equiv_2d (tests, nlhs)
     ! RMSEs across chunks will differ, and hence in principle a different
     ! point on the ALPHAS grid could be optiomal.
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: add. const. in X, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: add. const. in X, pre-centered variables"
 
     status = NF_STATUS_UNDEFINED
     allocate (coefs_all(Nrhs+Nconst,Nlhs), intercept(Nlhs))
@@ -1150,8 +1118,8 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
 
     ! Test with RESULT present
@@ -1165,8 +1133,8 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(res%intercept_multi) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, pre-centered variables, RES present')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, pre-centered variables, RES present"
     deallocate (coefs, coefs_const)
 
     ! --- X^T, Y with constants and pre-centered variables ---
@@ -1182,8 +1150,8 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X^T, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X^T, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
 
     ! --- X, Y^T with constants and pre-centered variables ---
@@ -1199,10 +1167,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, Y^T, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, Y^T, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
-
 
     ! --- X^T, Y^T with constants and pre-centered variables --
 
@@ -1217,10 +1184,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X^T, Y^T, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X^T, Y^T, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
-
 
     ! --- COEFS^T, X, Y with constants and pre-centered variables ---
 
@@ -1236,10 +1202,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: COEFS^T, add. const. in X, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: COEFS^T, add. const. in X, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
-
 
     ! --- COEFS^T, X^T, Y with constants and pre-centered variables ---
 
@@ -1255,10 +1220,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: COEFS^T, add. const. in X^T, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: COEFS^T, add. const. in X^T, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
-
 
     ! --- X, Y^T with constants and pre-centered variables ---
 
@@ -1274,10 +1238,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: COEFS^T, add. const. in X, Y^T, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: COEFS^T, add. const. in X, Y^T, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
-
 
     ! --- COEFS^T, X^T, Y^T with constants and pre-centered variables --
 
@@ -1293,10 +1256,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all (coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, Y^T, pre-centered variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, Y^T, pre-centered variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
-
 
     ! --- Additionally pre-scale X ---
 
@@ -1304,7 +1266,6 @@ subroutine test_equiv_2d (tests, nlhs)
     call standardize (X_alt, dim=1, scale_x=scale_x_alt, center=.false., &
         scale=.true., skip_const=.true., status=status)
     X_T(:,:) = transpose (X_alt)
-
 
     ! --- X pre-centered and pre-scaled, Y pre-centered ---
 
@@ -1318,8 +1279,8 @@ subroutine test_equiv_2d (tests, nlhs)
     ! RMSEs across chunks will differ, and hence in principle a different
     ! point on the ALPHAS grid could be optiomal.
     values_ok = all_close (alpha, alpha_default, atol=atol, rtol=rtol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_CV: add. const. in X, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_CV: add. const. in X, pre-centered, pre-scaled variables"
 
     status = NF_STATUS_UNDEFINED
     allocate (coefs_all(Nrhs+Nconst,Nlhs), intercept(Nlhs))
@@ -1333,8 +1294,8 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, pre-centered, pre-scaled variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
 
     ! Present RES
@@ -1351,10 +1312,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(res%intercept_multi) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, pre-centered, pre-scaled variables"
     deallocate (coefs_all, coefs, coefs_const)
-
 
     ! --- X^T pre-centered and pre-scaled, Y pre-centered ---
 
@@ -1371,10 +1331,9 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X^T, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X^T, pre-centered, pre-scaled variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
-
 
     ! --- X pre-centered and pre-scaled, Y^T pre-centered ---
 
@@ -1391,10 +1350,10 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X, Y^T, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X, Y^T, pre-centered, pre-scaled " // &
+            "variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
-
 
     ! --- X^T pre-centered and pre-scaled, Y^T pre-centered ---
 
@@ -1411,10 +1370,10 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: add. const. in X^T, Y^T, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: add. const. in X^T, Y^T, pre-centered, pre-scaled " // &
+            "variables"
     deallocate (coefs_all, coefs, coefs_const, intercept)
-
 
     ! --- COEFS^T, X pre-centered and pre-scaled, Y pre-centered ---
 
@@ -1431,10 +1390,10 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: COEFS^T, add. const. in X, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: COEFS^T, add. const. in X, pre-centered, pre-scaled " &
+            // "variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
-
 
     ! --- COEFS^T, X^T pre-centered and pre-scaled, Y pre-centered ---
 
@@ -1451,10 +1410,10 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: COEFS^T, add. const. in X^T, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: COEFS^T, add. const. in X^T, pre-centered, " // &
+            "pre-scaled variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
-
 
     ! --- X pre-centered and pre-scaled, Y^T pre-centered ---
 
@@ -1471,10 +1430,10 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: COEFS^T, add. const. in X, Y^T, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: COEFS^T, add. const. in X, Y^T, pre-centered, " // &
+            "pre-scaled variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
-
 
     ! --- COEFS^T, X^T pre-centered and pre-scaled, Y^T pre-centered ---
 
@@ -1491,19 +1450,15 @@ subroutine test_equiv_2d (tests, nlhs)
     values_ok = all(coefs_const == 0.0_PREC) .and. &
         all_close (coefs, coefs_default, atol=atol, rtol=rtol) .and. &
         all(abs(intercept) < atol)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'ENET_FIT: COEFS^T, add. const. in X^T, Y^T, pre-centered, pre-scaled variables')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "ENET_FIT: COEFS^T, add. const. in X^T, Y^T, pre-centered, " // &
+            "pre-scaled variables"
     deallocate (coefs_all, coefs, coefs_T, coefs_const, intercept)
 
 end subroutine
 
-
-
-subroutine test_ridge_1d_args (tests)
+subroutine test_ridge_1d_args ()
     !*  Unit tests for rigde regression argument checking
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x
     real (PREC), dimension(:), allocatable :: y
@@ -1513,8 +1468,6 @@ subroutine test_ridge_1d_args (tests)
     integer :: nrhs, nobs, ncoefs
     type (status_t) :: status
     type (enet_config) :: conf
-
-    tc => tests%add_test ("Ridge[1d] argument checking")
 
     alpha = 0.0
 
@@ -1527,8 +1480,8 @@ subroutine test_ridge_1d_args (tests)
 
     status = NF_STATUS_UNDEFINED
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, Y"
 
     deallocate (y, x, beta)
 
@@ -1543,8 +1496,8 @@ subroutine test_ridge_1d_args (tests)
     conf = enet_config ()
     conf%trans_x = .true.
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, Y"
 
     deallocate (x, y, beta)
 
@@ -1557,8 +1510,8 @@ subroutine test_ridge_1d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config()
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, COEFS"
 
     deallocate (x, y, beta)
 
@@ -1572,8 +1525,8 @@ subroutine test_ridge_1d_args (tests)
     conf = enet_config ()
     conf%trans_x = .true.
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, COEFS"
 
     deallocate (x, y, beta)
 
@@ -1586,8 +1539,7 @@ subroutine test_ridge_1d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config ()
     call ridge (conf, x, y, alpha, beta, rcond=-0.1_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid RCOND")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid RCOND"
 
     deallocate (x, y, beta)
 
@@ -1602,20 +1554,14 @@ subroutine test_ridge_1d_args (tests)
     alpha = -1.0_PREC
     conf = enet_config ()
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid LAMBDA")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid LAMBDA"
 
     deallocate (x, y, beta)
 
 end subroutine
 
-
-
-subroutine test_ridge_2d_args (tests)
+subroutine test_ridge_2d_args ()
     !*  Unit tests for ridge regression argument checking
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x, y
     real (PREC), dimension(:,:), allocatable :: beta
@@ -1624,8 +1570,6 @@ subroutine test_ridge_2d_args (tests)
     real (PREC) :: alpha
     type (status_t) :: status
     type (enet_config) :: conf
-
-    tc => tests%add_test ("Ridge[2d] argument checking")
 
     alpha = 0.0
 
@@ -1639,8 +1583,8 @@ subroutine test_ridge_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config ()
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, Y"
 
     deallocate (x, y, beta)
 
@@ -1654,8 +1598,8 @@ subroutine test_ridge_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config (trans_x=.true.)
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, Y"
 
     deallocate (x, y, beta)
 
@@ -1669,8 +1613,8 @@ subroutine test_ridge_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config ()
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X, COEFS"
 
     deallocate (x, y, beta)
 
@@ -1684,8 +1628,8 @@ subroutine test_ridge_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config(trans_x=.true.)
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X^T, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X^T, COEFS"
 
     deallocate (x, y, beta)
 
@@ -1699,8 +1643,8 @@ subroutine test_ridge_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config ()
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays Y, COEFS")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays Y, COEFS"
 
     deallocate (x, y, beta)
 
@@ -1714,8 +1658,7 @@ subroutine test_ridge_2d_args (tests)
     status = NF_STATUS_UNDEFINED
     conf = enet_config ()
     call ridge (conf, x, y, alpha, beta, rcond=-0.1_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid RCOND")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid RCOND"
 
     deallocate (x, y, beta)
 
@@ -1730,20 +1673,14 @@ subroutine test_ridge_2d_args (tests)
     alpha = -1.0
     conf = enet_config ()
     call ridge (conf, x, y, alpha, beta, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid LAMBDA")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid LAMBDA"
 
     deallocate (x, y, beta)
 
 end subroutine
 
-
-
-subroutine test_ridge_1d (tests)
+subroutine test_ridge_1d ()
     !*  Unit tests for various OLS regression problems using the 1d API
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), dimension(:,:), allocatable :: x
     real (PREC), dimension(:), allocatable :: y, beta, beta_true, work
@@ -1751,7 +1688,7 @@ subroutine test_ridge_1d (tests)
     integer :: nrhs, ncoefs, nobs
     integer :: rank, rank_ols
     real (PREC) :: intercept, intercept_ols, intercept_true
-    real (PREC), parameter :: RTOL = 1.0e-3_PREC, ATOL=0.0_PREC
+    real (PREC), parameter :: Rtol=1.0e-3_PREC, ATOL=0.0_PREC
     logical :: values_ok, trans_x
     ! Arguments for ALL_CLOSE()
     real (PREC) :: rsq, alpha, ssq, ssq_ols
@@ -1760,8 +1697,6 @@ subroutine test_ridge_1d (tests)
     type (lm_result), allocatable :: lm_ols
     type (enet_result), allocatable :: glm
     type (enet_config) :: conf
-
-    tc => tests%add_test ('Ridge[1d] unit tests')
 
     call set_seed (456)
 
@@ -1789,8 +1724,8 @@ subroutine test_ridge_1d (tests)
     call ridge (conf, x, y, alpha, beta, rank=rank, res=glm, status=status)
 
     values_ok = all_close (beta, beta_true, rtol=RTOL, atol=ATOL)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Estim: Exactly identified system, LAMBDA=0')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Estim: Exactly identified system, LAMBDA=0"
 
     ! Test with alpha > 0.0
     status = NF_STATUS_UNDEFINED
@@ -1800,8 +1735,8 @@ subroutine test_ridge_1d (tests)
 
     ssq = sum(beta**2.0)
     ssq_ols = sum(beta_ols**2.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. ssq <= ssq_ols, &
-        'Estim: Exactly identified system, LAMBDA>0')
+    if (.not. (status == NF_STATUS_OK .and. ssq <= ssq_ols)) &
+        error stop "Estim: Exactly identified system, LAMBDA>0"
 
     deallocate (x, y, beta, beta_true, beta_ols)
 
@@ -1827,8 +1762,8 @@ subroutine test_ridge_1d (tests)
     call ridge (conf, x, y, alpha, beta, rank=rank, status=status)
 
     values_ok = all_close (beta, beta_ols, rtol=RTOL, atol=ATOL)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Estim: Overdet. system with small residuals, LAMBDA=0")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Estim: Overdet. system with small residuals, LAMBDA=0"
 
     ! Lambda > 0
     status = NF_STATUS_UNDEFINED
@@ -1837,11 +1772,10 @@ subroutine test_ridge_1d (tests)
 
     ssq = sum(beta**2.0)
     ssq_ols = sum(beta_ols**2.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. ssq <= ssq_ols, &
-        "Estim: Overdet. system with small residuals, LAMBDA>0")
+    if (.not. (status == NF_STATUS_OK .and. ssq <= ssq_ols)) &
+        error stop "Estim: Overdet. system with small residuals, LAMBDA>0"
 
     deallocate (x, y, beta, beta_true, beta_ols)
-
 
     ! === overdetermined system with intercept ===
 
@@ -1866,8 +1800,9 @@ subroutine test_ridge_1d (tests)
 
     values_ok = all_close (beta, beta_ols, rtol=RTOL, atol=ATOL) .and. &
         all_close (intercept, intercept_ols, atol=ATOL, rtol=RTOL)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Estim: Overdet. system with small residuals, LAMBDA=0, CENTER=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Estim: Overdet. system with small residuals, LAMBDA=0, " // &
+            "CENTER=.TRUE."
 
     ! Lambda > 0.0
     status = NF_STATUS_UNDEFINED
@@ -1877,11 +1812,11 @@ subroutine test_ridge_1d (tests)
 
     ssq = sum(beta**2.0)
     ssq_ols = sum(beta_ols**2.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. ssq <= ssq_ols, &
-        "Estim: Overdet. system with small residuals, LAMBDA>0, CENTER=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. ssq <= ssq_ols)) &
+        error stop "Estim: Overdet. system with small residuals, LAMBDA>0, " // &
+            "CENTER=.TRUE."
 
     deallocate (x, y, beta, beta_true, beta_ols)
-
 
     ! === overdetermined system with intercept, transposed X ===
 
@@ -1909,8 +1844,9 @@ subroutine test_ridge_1d (tests)
 
     values_ok = all_close (beta, beta_ols, rtol=RTOL, atol=ATOL) .and. &
         all_close (intercept, intercept_ols, atol=ATOL, rtol=RTOL)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        "Estim: Overdet. system with small resid, LAMBDA=0, CENTER=.TRUE., TRANS_X=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Estim: Overdet. system with small resid, LAMBDA=0, " // &
+            "CENTER=.TRUE., TRANS_X=.TRUE."
 
     ! Lambda > 0.0
     status = NF_STATUS_UNDEFINED
@@ -1919,12 +1855,12 @@ subroutine test_ridge_1d (tests)
 
     ssq = sum(beta**2.0)
     ssq_ols = sum(beta_ols**2.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. ssq <= ssq_ols, &
-        "Estim: Overdet. system with small resid, LAMBDA>0, CENTER=.TRUE., TRANS_X=.TRUE.")
+    if (.not. (status == NF_STATUS_OK .and. ssq <= ssq_ols)) &
+        error stop "Estim: Overdet. system with small resid, LAMBDA>0, " // &
+            "CENTER=.TRUE., TRANS_X=.TRUE."
 
     deallocate (x, y, beta, beta_true, beta_ols)
 
 end subroutine
-
 
 end

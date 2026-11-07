@@ -11,30 +11,19 @@ program test_io_fixed
     use numfort_common_testing
     use numfort_io
 
-    use fcore_strings
-    use fcore_testing
-
     implicit none
 
     call test_all ()
 
-
     contains
-
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_fixed_real32 ()
+    call test_fixed_real64 ()
 
-    call tests%set_label ("IO unit tests for fixed-format files")
-
-    call test_fixed_real32 (tests)
-    call test_fixed_real64 (tests)
-
-    call test_fixed_alloc_real32 (tests)
-    call test_fixed_alloc_real64 (tests)
-
-    call tests%print()
+    call test_fixed_alloc_real32 ()
+    call test_fixed_alloc_real64 ()
 
 end subroutine
 
@@ -43,8 +32,6 @@ end subroutine
 
 #include <numfort_real64.h>
 #include "io_fixed_impl.F90"
-
-
 
 end program
 

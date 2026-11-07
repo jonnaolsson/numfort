@@ -6,7 +6,6 @@
 - Ubuntu repository packages: CMake, Ninja, Git, reference BLAS/LAPACK, and headers.
 - Compiler 15 is Ubuntu's default; jobs select versioned executables explicitly.
 - Compiler 16 is the `16-20260322` development snapshot.
-- fcore is built per job with the selected compiler; sources stay outside the image.
 - Installed package versions are recorded in `/opt/fortran-ci/packages.tsv`.
 
 The image definition and package inventory live in
@@ -17,13 +16,12 @@ checkout:
 docker build -t fortran-ci:ubuntu26.04 ../fortran-ci/ubuntu26.04
 ```
 
-Run a job with initialized numfort submodules and a checkout of fcore:
+Run a job with initialized numfort submodules:
 
 ```sh
 mkdir -p build-ci
 docker run --rm --ulimit core=0 --user "$(id -u):$(id -g)" \
     -v "$(pwd):/src/numfort:ro,z" \
-    -v "$(realpath ../fortran-corelib):/src/fcore:ro,z" \
     -v "$(pwd)/build-ci:/build:z" \
     fortran-ci:ubuntu26.04 bash /src/numfort/ci/ubuntu26.04/run-tests.sh 15 Debug
 ```
@@ -33,7 +31,7 @@ docker run --rm --ulimit core=0 --user "$(id -u):$(id -g)" \
   still records crashes as failures.
 - Set `-e BUILD_SHARED_LIBS=ON` for shared-library jobs; the default is static.
 - Select `ifx` instead of a GNU major version for Intel Fortran jobs; these use
-  `gcc-15` for C. fcore and the installed client use the same Fortran compiler.
+  `gcc-15` for C. numfort and the installed client use the same Fortran compiler.
 - For ifx or MKL jobs, insert `with-oneapi` before `bash` in the container command
   to initialize compiler paths, runtime library paths, and `MKLROOT`.
 - Set `-e NUMFORT_USE_MKL=ON` to test MKL (default OFF). MKL jobs require MKLROOT
@@ -45,10 +43,8 @@ docker run --rm --ulimit core=0 --user "$(id -u):$(id -g)" \
 - Build output is separated by compiler, configuration, and every build option.
 - Each job builds numfort, installs and relocates its package, and runs an
   installed client. Tests/examples/OpenMP follow the selected switches.
-- fcore is built/tested with the matching compiler only when numfort tests are ON.
 - Keep `build-ci` as the job artifact, including `Testing/Temporary/LastTest.log`.
-- Existing test runners can report assertion failures while exiting successfully;
-  inspect their logs as well as CTest status. Runner changes remain separate.
+- Executable exit status and CTest results determine test failure.
 
 ## Build-option matrix
 
@@ -73,9 +69,6 @@ with-oneapi bash /src/numfort/ci/ubuntu26.04/run-matrix.sh
 - The driver continues after failures and returns nonzero if any job exits
   nonzero. Each invocation saves per-job logs, CTest log snapshots, the selected
   job manifest, and `summary.tsv` under `/build/matrix/run.XXXXXX/`.
-- `ASSERTIONS` identifies zero-exit jobs whose logs contain failed assertions;
-  existing runner exit behavior is preserved.
-- Pin the fcore checkout to a commit in CI. Builds with tests OFF do not use fcore.
 
 ## Local parallel execution
 
@@ -85,7 +78,7 @@ with-oneapi bash /src/numfort/ci/ubuntu26.04/run-matrix.sh
   CTest schedules complete build/install/client/test sequences; no additional
   packages or image rebuild are needed.
 - Use `--jobs 8` and `CMAKE_BUILD_PARALLEL_LEVEL=4`: at most eight
-  configurations, each with up to four compilation workers. The inner fcore and
+  configurations, each with up to four compilation workers. The inner
   numfort CTest runs explicitly use one worker, regardless of inherited
   `CTEST_PARALLEL_LEVEL`. OpenMP thread settings remain independent.
 - Each configuration retains its own build and temporary directories. The runner
@@ -96,7 +89,6 @@ with-oneapi bash /src/numfort/ci/ubuntu26.04/run-matrix.sh
 - Summaries preserve selection order. `INCOMPLETE` marks jobs that did not write
   a result, for example after interruption. CTest handles worker scheduling and
   interruption; its diagnostics remain under the invocation's `scheduler/`.
-- `ASSERTIONS` remains diagnostic and does not change a zero process exit status.
 
 With the same Docker mounts, use this container command for two selected jobs:
 
@@ -122,7 +114,6 @@ For example, run the Intel MKL Debug job with the same mounts:
 mkdir -p build-ci
 docker run --rm --ulimit core=0 --user "$(id -u):$(id -g)" \
     -v "$(pwd):/src/numfort:ro,z" \
-    -v "$(realpath ../fortran-corelib):/src/fcore:ro,z" \
     -v "$(pwd)/build-ci:/build:z" \
     fortran-ci:ubuntu26.04 with-oneapi \
     bash /src/numfort/ci/ubuntu26.04/run-matrix.sh ifx-mkl-debug-static

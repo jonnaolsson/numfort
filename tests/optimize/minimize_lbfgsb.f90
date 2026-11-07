@@ -9,9 +9,6 @@ program test_optimize_minimize_lbfgsb
     use numfort_optimize, workspace => workspace_real64, &
         optim_result => optim_result_real64
 
-    use fcore_common, FC_status_t => status_t
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -22,24 +19,14 @@ program test_optimize_minimize_lbfgsb
 
     contains
 
-
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ("L-BFGS-B unit test")
-
-    call test_quad (tests)
-
-    call tests%print ()
+    call test_quad ()
 
 end subroutine
 
 
-subroutine test_quad (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_quad ()
 
     integer, parameter :: NDIM = 3
     type (workspace) :: work
@@ -47,14 +34,12 @@ subroutine test_quad (tests)
     real (PREC), dimension(NDIM) :: x0
     logical, parameter :: ndiff = .true.
 
-    tc => tests%add_test ("Quadratic objective")
-
     ! unconstrained minimizer
     x0 = 0.0
     call minimize_lbfgsb (fobj, x0, ndiff=ndiff, work=work, res=res)
 
-    call tc%assert_true (all_close (res%x, ROOTS, atol=1.0d-6), &
-        "Using numerical differentiation")
+    if (.not. (all_close (res%x, ROOTS, atol = 1.0d-6))) &
+        error stop "Using numerical differentiation"
 
 end subroutine
 
@@ -66,6 +51,5 @@ subroutine fobj (x, fx)
     fx = (x(1)-ROOTS(1))**2.0d0 + (x(2)-ROOTS(2)) ** 2.0d0 + (x(3)-ROOTS(3))**2.0
 
 end subroutine
-
 
 end

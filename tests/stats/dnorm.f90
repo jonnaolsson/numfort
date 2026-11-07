@@ -2,9 +2,6 @@ program test_numfort_stats_dnorm
 
     use iso_fortran_env
 
-    ! avoid nameclashes with CORELIB status_t type
-    use fcore_common, FC_status_t => status_t
-    use fcore_testing
     use numfort_arrays
     use numfort_common
     use numfort_stats, only: dnorm => dnorm_real64, norm, mean, std, cdf, pdf, rvs
@@ -20,25 +17,14 @@ program test_numfort_stats_dnorm
 contains
 
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort_stats_dnorm unit tests")
-
-    call test_cdf (tests)
-    call test_cdf_rvs (tests)
-
-    ! print test statistics
-    call tests%print ()
+    call test_cdf ()
+    call test_cdf_rvs ()
 
 end subroutine
 
+subroutine test_cdf ()
 
-subroutine test_cdf (tests)
-
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
-
-    type (str) :: msg
     real (real64), dimension(:), allocatable :: x, fx
     real (real64) :: x1, fx1
     real (real64), parameter, dimension(4) :: &
@@ -47,28 +33,23 @@ subroutine test_cdf (tests)
 
     integer :: i, n
 
-    tc => tests%add_test ("dnorm CDF test cases")
-
     do i = 1, size(means)
-
-        msg = " (loc=" // str(means(i), 'g8.1e2') // ", scale=" // &
-            str(sd(i), 'g8.3e2') // ")"
 
         x1 = means(i)
         fx1 = cdf (norm, x1, loc=means(i), scale=sd(i))
-        call tc%assert_true (abs(fx1 - 0.5d0) < tol, &
-            "Check CDF(mean) == 0.5" // msg)
+        if (.not. (abs (fx1 - 0.5d0) < tol)) &
+            error stop "Normal CDF at the mean differs from 0.5"
 
         ! Check boundary behavior
         x1 = huge(x1)
         fx1 = cdf (norm, x1, loc=means(i), scale=sd(i))
-        call tc%assert_true (abs(fx1 - 1.0d0) < tol, &
-            "Check CDF(inf) == 1.0" // msg)
+        if (.not. (abs (fx1 - 1.0d0) < tol)) &
+            error stop "Normal CDF at positive infinity differs from one"
 
         x1 = -huge(x1)
         fx1 = cdf (norm, x1, loc=means(i), scale=sd(i))
-        call tc%assert_true (abs(fx1) < tol, &
-            "Check CDF(-inf) = 0.0" // msg)
+        if (.not. (abs (fx1) < tol)) &
+            error stop "Normal CDF at negative infinity differs from zero"
 
         ! Test that CDF is non-decreasing
         n = 100
@@ -76,20 +57,16 @@ subroutine test_cdf (tests)
 
         call linspace (x, -1d10, 1d10)
         fx = cdf (norm, x, loc=means(i), scale=sd(i))
-        call tc%assert_true (all(fx(2:)-fx(1:n-1) >= 0.0d0), &
-            "Check that CDF is non-decreasing" // msg)
+        if (.not. (all (fx(2:) - fx(1:n - 1) >= 0.0d0))) &
+            error stop "Normal CDF is decreasing"
 
         deallocate (x, fx)
     end do
 
 end subroutine
 
-subroutine test_cdf_rvs (tests)
+subroutine test_cdf_rvs ()
 
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
-
-    type (str) :: msg
     real (PREC), dimension(:), allocatable :: x, fx
     real (PREC), parameter, dimension(4) :: &
         means = [real (PREC) :: 0.0d0, -21.0d0, 1d-5, 1.234d4], &
@@ -99,14 +76,9 @@ subroutine test_cdf_rvs (tests)
     type (status_t) :: status
     logical :: in_range
 
-    tc => tests%add_test ("dnorm CDF(random) test cases")
-
     n = 100000
     allocate (x(n), fx(n))
     do i = 1, size(means)
-
-        msg = " (loc=" // str(means(i), 'g8.1e2') // ", scale=" // &
-            str(sd(i), 'g8.3e2') // ")"
 
         ! draw random sample of normally distributed RV
         call rvs (norm, x, loc=means(i), scale=sd(i))
@@ -118,8 +90,9 @@ subroutine test_cdf_rvs (tests)
         ! compute mean and variance
         call std (fx, s, m, status=status)
         s2 = s ** 2
-        call tc%assert_true (in_range .and. abs(m-0.5) < 1d-3 .and. abs(s2 - 1.0d0/12) < 1d-3, &
-            "Check that CDF(x) close to std. uniform" // msg)
+        if (.not. (in_range .and. abs (m - 0.5) < 1d-3 .and. abs (s2 - 1.0d0 / 12) < &
+            1d-3)) &
+            error stop "Normal CDF of random samples has unexpected moments"
 
     end do
 

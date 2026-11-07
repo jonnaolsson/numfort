@@ -14,9 +14,6 @@ program test_optimize_solver_map
     use numfort_optimize, solver_map => solver_map_real64
     use numfort_stats, only: set_seed
 
-    use fcore_strings
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -29,30 +26,17 @@ program test_optimize_solver_map
 
     call test_all ()
 
-
     contains
-
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ('optimize::solver_map unit tests')
-
-    call test_linear (tests)
-    call test_exp (tests)
-    call test_logistic (tests)
-
-    call tests%print ()
+    call test_linear ()
+    call test_exp ()
+    call test_logistic ()
 
 end subroutine
 
-
-
-subroutine test_linear (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_linear ()
 
         ! Note: y0 parameter is irrelevant for linear mappings
     real (PREC), parameter :: dx_all(*) = [1.0d-6, 0.1d0, 1.0d0, 2.34d0]
@@ -66,20 +50,17 @@ subroutine test_linear (tests)
     real (PREC) :: dx, dy
     integer :: i, j, k, nx, ny, n
     type (status_t) :: status
-    type (str) :: msg
-
-    tc => tests%add_test ('Linear mappings')
 
     ! Input checks with invalid arguments
     status = NF_STATUS_UNDEFINED
     call solver_map_init (map, lb=ninf, dy=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "INIT called with invalid dy=0")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "INIT called with invalid dy=0"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_init (map, lb=ninf, dx=0.0_PREC, dy=1.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "INIT called with invalid dx=0")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "INIT called with invalid dx=0"
 
     nx = size(dx_all)
     ny = size(dy_all)
@@ -96,9 +77,8 @@ subroutine test_linear (tests)
 
             status = NF_STATUS_UNDEFINED
             call solver_map_init (maps(k), lb=ninf, dy=dy, dx=dx, status=status)
-            msg = 'INIT called with dx=' // str(dx, 'f6.3') // '; dy=' &
-                // str(dy, 'f6.3')
-            call tc%assert_true (status == NF_STATUS_OK, msg)
+            if (.not. (status == NF_STATUS_OK)) &
+                error stop "Linear mapping initialization failed"
         end do
     end do
 
@@ -111,44 +91,40 @@ subroutine test_linear (tests)
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps, x, y, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called at values X')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called at values X"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps, y, x1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called at values f(X)')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL_INVERSE called at values f(X)"
 
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (x, x1, atol=1.0e-10_PREC, rtol=0.0_PREC), &
-        'Checking X == f^-1(f(X))')
+    if (.not. (status == NF_STATUS_OK .and. all_close (x, x1, atol=1.0e-10_PREC, &
+        rtol=0.0_PREC))) &
+        error stop "Checking X == f^-1(f(X))"
 
     status = NF_STATUS_UNDEFINED
     call random_number (y)
     call solver_map_eval_inverse (maps, y, x, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called at values Y')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL_INVERSE called at values Y"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps, x, y1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (y1, y, atol=1.0e-10_PREC, rtol=0.0_PREC), &
-        'Checking Y == f(f^-1(Y))')
+    if (.not. (status == NF_STATUS_OK .and. all_close (y1, y, atol=1.0e-10_PREC, &
+        rtol=0.0_PREC))) &
+        error stop "Checking Y == f(f^-1(Y))"
 
     ! Test diagonal Jacobians
     allocate (jac_diag(n), jac_inv_diag(n))
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps, x, y, jac_diag, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called with 1-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called with 1-d JAC argument"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps, y, x1, jac_inv_diag, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called with 1-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "EVAL_INVERSE called with 1-d JAC argument"
 
-    call tc%assert_true (all_close (jac_inv_diag, 1.0_PREC/jac_diag), &
-        'Checking inverse of Jacobian == Jacobian of inverse')
+    if (.not. (all_close (jac_inv_diag, 1.0_PREC / jac_diag))) &
+        error stop "Checking inverse of Jacobian == Jacobian of inverse"
 
     deallocate (jac_diag, jac_inv_diag)
 
@@ -156,29 +132,23 @@ subroutine test_linear (tests)
     allocate (jac(n,n), jac_inv(n,n), eye(n,n), xx(n,n))
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps, x, y, jac, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called with 2-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called with 2-d JAC argument"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps, y, x1, jac_inv, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called with 2-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "EVAL_INVERSE called with 2-d JAC argument"
 
     xx = matmul (jac, jac_inv)
     call identity (eye)
-    call tc%assert_true (all_close (xx, eye, atol=1.0e-10_PREC, rtol=0.0_PREC), &
-        'Checking inverse of Jacobian == Jacobian of inverse')
+    if (.not. (all_close (xx, eye, atol=1.0e-10_PREC, rtol=0.0_PREC))) &
+        error stop "Checking inverse of Jacobian == Jacobian of inverse"
 
     deallocate (jac, jac_inv)
 
 end subroutine
 
-
-
-subroutine test_exp (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_exp ()
 
         ! Note: y0 parameter is irrelevant for linear mappings
     real (PREC), parameter :: dx_all(*) = [1.0d-6, 0.1d0, 1.34d0]
@@ -195,20 +165,17 @@ subroutine test_exp (tests)
     integer :: i, j, k, n, nmax
     type (status_t) :: status
     logical :: values_ok
-    type (str) :: msg
-
-    tc => tests%add_test ('Exponential mappings')
 
     !  === Input checks ===
     status = NF_STATUS_UNDEFINED
     call solver_map_init (map, lb=0.0_PREC, dy=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "INIT called with invalid dy=0")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "INIT called with invalid dy=0"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_init (map, lb=0.0_PREC, dx=0.0_PREC, dy=1.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "INIT called with invalid dx=0")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "INIT called with invalid dx=0"
 
     ! === Verify scaling parameter ===
 
@@ -252,14 +219,10 @@ subroutine test_exp (tests)
                 ! Evaluate at x0 + dx
                 call solver_map_eval (map, x0+dx, y)
 
-                msg = 'INIT called with lb=' // str(lb, 'f6.3') &
-                    // '; y0=' // str(y0, 'f6.3') //  '; dx=' &
-                    // str(dx, 'f6.3') // '; dy=' // str(dy, 'f6.3')
-
                 ! Verify that DX moves Y by DY around (X0, Y0)
                 diff = (y-y0) - dy
-                call tc%assert_true (status == NF_STATUS_OK .and. &
-                    abs(diff) < 1.0e-8_PREC, msg)
+                if (.not. (status == NF_STATUS_OK .and. abs (diff) < 1.0e-8_PREC)) &
+                    error stop "Exponential mapping did not produce the requested change"
             end do
         end do
     end do
@@ -275,13 +238,11 @@ subroutine test_exp (tests)
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called at values X')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called at values X"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps(1:n), yy, xx1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called at values f(X)')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL_INVERSE called at values f(X)"
 
     ! When checking whether values get mapped back to the same X, ignore
     ! y-values close to lower bound, as there we have less precision.
@@ -296,36 +257,34 @@ subroutine test_exp (tests)
     end where
     values_ok = all(diff_x < 1.0e-10_PREC)
 
-    call tc%assert_true (values_ok, 'Checking X == f^-1(f(X))')
+    if (.not. (values_ok)) error stop "Checking X == f^-1(f(X))"
 
     status = NF_STATUS_UNDEFINED
     call random_number (yy)
     ! Make sure no Y is outside of admissible range
     yy(:) = yy + lb_flat(1:n)
     call solver_map_eval_inverse (maps(1:n), yy, xx, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called at values Y')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL_INVERSE called at values Y"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yy1, yy, atol=1.0e-10_PREC, rtol=0.0_PREC), &
-        'Checking Y == f(f^-1(Y))')
+    if (.not. (status == NF_STATUS_OK .and. all_close (yy1, yy, atol=1.0e-10_PREC, &
+        rtol=0.0_PREC))) &
+        error stop "Checking Y == f(f^-1(Y))"
 
     ! Test diagonal Jacobians
     allocate (jac_diag(n), jac_inv_diag(n))
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy, jac_diag, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called with 1-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called with 1-d JAC argument"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps(1:n), yy, xx1, jac_inv_diag, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called with 1-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "EVAL_INVERSE called with 1-d JAC argument"
 
-    call tc%assert_true (all_close (jac_inv_diag, 1.0_PREC/jac_diag), &
-        'Checking inverse of Jacobian == Jacobian of inverse')
+    if (.not. (all_close (jac_inv_diag, 1.0_PREC / jac_diag))) &
+        error stop "Checking inverse of Jacobian == Jacobian of inverse"
 
     deallocate (jac_diag, jac_inv_diag)
 
@@ -333,30 +292,24 @@ subroutine test_exp (tests)
     allocate (jac(n,n), jac_inv(n,n), eye(n,n), mat(n,n))
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy, jac, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called with 2-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called with 2-d JAC argument"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps(1:n), yy, xx1, jac_inv, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called with 2-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "EVAL_INVERSE called with 2-d JAC argument"
 
     mat = matmul (jac, jac_inv)
     call identity (eye)
-    call tc%assert_true (all_close (mat, eye, atol=1.0e-10_PREC, rtol=0.0_PREC), &
-        'Checking inverse of Jacobian == Jacobian of inverse')
+    if (.not. (all_close (mat, eye, atol=1.0e-10_PREC, rtol=0.0_PREC))) &
+        error stop "Checking inverse of Jacobian == Jacobian of inverse"
 
     deallocate (jac, jac_inv)
 
 end subroutine
 
-
-
-subroutine test_logistic (tests)
+subroutine test_logistic ()
     !*  Unit tests for "logistic" mapping f: R -> [lb,ub]
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
         ! Note: y0 parameter is irrelevant for linear mappings
     real (PREC), parameter :: dx_all(*) = [1.0d-6, 0.1d0, 1.34d0]
@@ -374,20 +327,17 @@ subroutine test_logistic (tests)
     integer :: i, j, k, n, nmax, ii
     type (status_t) :: status
     logical :: values_ok
-    type (str) :: msg
-
-    tc => tests%add_test ('Logistic mappings')
 
     ! === Input checks ===
     status = NF_STATUS_UNDEFINED
     call solver_map_init (map, lb=0.0_PREC, dy=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "INIT called with invalid dy=0")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "INIT called with invalid dy=0"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_init (map, lb=0.0_PREC, dx=0.0_PREC, dy=1.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "INIT called with invalid dx=0")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "INIT called with invalid dx=0"
 
     ! === Verify scaling parameter ===
 
@@ -441,14 +391,10 @@ subroutine test_logistic (tests)
                 ! Evaluate at x0 + dx
                 call solver_map_eval (map, x0+dx, y)
 
-                msg = 'INIT called with lb=' // str(lb, 'f6.3') &
-                    // '; y0=' // str(y0, 'f6.3') //  '; dx=' &
-                    // str(dx, 'f6.3') // '; dy=' // str(dy, 'f6.3')
-
                 ! Verify that DX moves Y by DY around (X0, Y0)
                 diff = (y-y0) - dy
-                call tc%assert_true (status == NF_STATUS_OK &
-                    .and. abs(diff) < 1.0e-8_PREC, msg)
+                if (.not. (status == NF_STATUS_OK .and. abs (diff) < 1.0e-8_PREC)) &
+                    error stop "Logistic mapping did not produce the requested change"
             end do
         end do
     end do
@@ -463,13 +409,11 @@ subroutine test_logistic (tests)
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called at values X')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called at values X"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps(1:n), yy, xx1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called at values f(X)')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL_INVERSE called at values f(X)"
 
     ! When checking whether values get mapped back to the same X, ignore
     ! y-values close to bounds, as there we have less precision.
@@ -485,37 +429,35 @@ subroutine test_logistic (tests)
     end where
     values_ok = all(diff_x < 1.0e-10_PREC)
 
-    call tc%assert_true (values_ok, 'Checking X == f^-1(f(X))')
+    if (.not. (values_ok)) error stop "Checking X == f^-1(f(X))"
 
     status = NF_STATUS_UNDEFINED
     call random_number (yy)
     ! Make sure no Y is outside of admissible range
     yy(:) = lb_flat + (ub_flat - lb_flat) * yy
     call solver_map_eval_inverse (maps(1:n), yy, xx, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called at values Y')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL_INVERSE called at values Y"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (yy1, yy, atol=1.0e-10_PREC, rtol=0.0_PREC), &
-        'Checking Y == f(f^-1(Y))')
+    if (.not. (status == NF_STATUS_OK .and. all_close (yy1, yy, atol=1.0e-10_PREC, &
+        rtol=0.0_PREC))) &
+        error stop "Checking Y == f(f^-1(Y))"
 
     ! Test diagonal Jacobians
     allocate (jac_diag(n), jac_inv_diag(n))
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy, jac_diag, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called with 1-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called with 1-d JAC argument"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps(1:n), yy, xx1, jac_inv_diag, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called with 1-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "EVAL_INVERSE called with 1-d JAC argument"
 
     dd(:) = jac_inv_diag - 1.0_PREC/jac_diag
-    call tc%assert_true (all_close (jac_inv_diag, 1.0_PREC/jac_diag, atol=1.0e-8_PREC), &
-        'Checking inverse of Jacobian == Jacobian of inverse')
+    if (.not. (all_close (jac_inv_diag, 1.0_PREC / jac_diag, atol=1.0e-8_PREC))) &
+        error stop "Checking inverse of Jacobian == Jacobian of inverse"
 
     deallocate (jac_diag, jac_inv_diag)
 
@@ -523,22 +465,20 @@ subroutine test_logistic (tests)
     allocate (jac(n,n), jac_inv(n,n), eye(n,n), mat(n,n))
     status = NF_STATUS_UNDEFINED
     call solver_map_eval (maps(1:n), xx, yy, jac, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL called with 2-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) error stop "EVAL called with 2-d JAC argument"
 
     status = NF_STATUS_UNDEFINED
     call solver_map_eval_inverse (maps(1:n), yy, xx1, jac_inv, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'EVAL_INVERSE called with 2-d JAC argument')
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "EVAL_INVERSE called with 2-d JAC argument"
 
     mat = matmul (jac, jac_inv)
     call identity (eye)
-    call tc%assert_true (all_close (mat, eye, atol=1.0e-10_PREC, rtol=0.0_PREC), &
-        'Checking inverse of Jacobian == Jacobian of inverse')
+    if (.not. (all_close (mat, eye, atol=1.0e-10_PREC, rtol=0.0_PREC))) &
+        error stop "Checking inverse of Jacobian == Jacobian of inverse"
 
     deallocate (jac, jac_inv)
 
 end subroutine
-
 
 end

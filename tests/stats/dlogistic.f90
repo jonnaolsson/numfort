@@ -3,8 +3,6 @@ program test_numfort_stats_dlogistic
     use, intrinsic :: ieee_arithmetic
     use, intrinsic :: iso_fortran_env
 
-    use fcore_common, FC_status_t => status_t
-    use fcore_testing
     use numfort_arrays
     use numfort_stats, only: logistic, dlogistic => dlogistic_real64, &
         cdf, pdf, ppf
@@ -13,35 +11,22 @@ program test_numfort_stats_dlogistic
 
     call test_all ()
 
-
 contains
 
-
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort_stats_dlogistic unit tests")
+    call test_cdf ()
+    call test_pdf ()
 
-    call test_cdf (tests)
-    call test_pdf (tests)
-
-    call tests%print ()
 end subroutine
 
-
-subroutine test_cdf (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
-
-    type (str) :: msg
+subroutine test_cdf ()
 
     integer :: i
     real (PREC), dimension(3) :: mu, sigma
     real (PREC) :: diff
     real (PREC), dimension(11) :: x, fx, x2, z
     real (PREC), parameter :: tol = 1d-10
-
-    tc => tests%add_test ("dlogistic CDF tests")
 
     mu = [ real(PREC) :: 0.0, 1.0, -1.0]
     sigma = [ real (PREC) :: 1.0, 0.01, 100.0]
@@ -54,34 +39,27 @@ subroutine test_cdf (tests)
         x2 = ppf (logistic, fx, loc=mu(i), scale=sigma(i))
 
         diff = maxval(abs(x-x2))
-        msg = "CDF/inv. CDF for mu=" // str(mu(i), "f0.3") // ", sigma=" &
-            // str(sigma(i), "f0.3") // "; diff=" // str(diff, "e9.2")
-        call tc%assert_true (diff < tol, msg)
+        if (.not. (diff < tol)) error stop "Logistic CDF/inverse-CDF round trip failed"
     end do
 
 end subroutine
 
-
-subroutine test_pdf (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_pdf ()
 
     real (PREC) :: fx, x
     type (dlogistic) :: logistic0 = dlogistic(scale=1.0d0)
-    
-    tc => tests%add_test ("dlogistic PDF tests")
 
     ! Test with every small x that should return 0.0
     x = -1.0d5
     fx = pdf (logistic0, x)
-    call tc%assert_true (ieee_is_finite(fx) .and. (fx == 0.0), &
-        "PDF at very large negative values")
+    if (.not. (ieee_is_finite (fx) .and. (fx == 0.0))) &
+        error stop "PDF at very large negative values"
 
     ! Test with very large x that should return 0.0
     x = 1.0d5
     fx = pdf (logistic0, x)
-    call tc%assert_true (ieee_is_finite(fx) .and. (fx == 0.0), &
-        "PDF at very large positive values")
+    if (.not. (ieee_is_finite (fx) .and. (fx == 0.0))) &
+        error stop "PDF at very large positive values"
 
 end subroutine
 

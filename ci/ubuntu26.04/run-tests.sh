@@ -7,13 +7,11 @@
 #   OpenMP, IPO, BLAS95, and MKL.
 # - Use mounted sources; keep builds, installs, and temporary files in
 #   BUILD_ROOT.
-# - Build a matching fcore installation when numfort tests are enabled.
 # - Require the selected BLAS provider, including MKL through with-oneapi.
 # - Install numfort, relocate its package, and build and run an installed
 #   client.
-# - Run enabled fcore and numfort tests sequentially and retain CTest logs.
-# - Return build/test failures; run-matrix-job.sh also checks assertion
-#   messages.
+# - Run enabled numfort tests and retain CTest logs.
+# - Return build/test failures through exit status.
 
 # ==============================================================================
 # Execution environment
@@ -77,10 +75,7 @@ fi
 # ==============================================================================
 # Sources can be read-only; every configuration has its own caches/module files.
 numfort_source=${NUMFORT_SOURCE_DIR:-/src/numfort}
-fcore_source=${FCORE_SOURCE_DIR:-/src/fcore}
 job_dir=${BUILD_ROOT:-/build}/${toolchain}/${config}/shared-${shared}-tests-${tests}-examples-${examples}-openmp-${openmp}-ipo-${ipo}-blas95-${blas95}-mkl-${mkl}
-fcore_build=${job_dir}/fcore
-fcore_prefix=${job_dir}/fcore-install
 numfort_build=${job_dir}/numfort
 numfort_prefix=${job_dir}/numfort-install
 relocated_prefix=${job_dir}/relocated-install
@@ -94,34 +89,18 @@ export TMP=${job_dir}/tmp TEMP=${job_dir}/tmp TMPDIR=${job_dir}/tmp
 # Compiler and package isolation
 # ==============================================================================
 # Avoid host flags/search paths and match the C compiler to Fortran explicitly.
-unset FFLAGS FCFLAGS CFLAGS CXXFLAGS LDFLAGS CMAKE_PREFIX_PATH fcore_DIR numfort_DIR
+unset FFLAGS FCFLAGS CFLAGS CXXFLAGS LDFLAGS CMAKE_PREFIX_PATH numfort_DIR
 common=(-G Ninja "-DCMAKE_C_COMPILER=${cc}" "-DCMAKE_Fortran_COMPILER=${fc}"
     "-DCMAKE_BUILD_TYPE=${config}")
 "${fc}" --version
 cmake --version
 
 # ==============================================================================
-# Build and install fcore
-# ==============================================================================
-# Only tests require fcore. Other cases verify numfort builds without finding
-# it.
-# Its module files must be produced by the selected Fortran compiler.
-prefix_path=""
-if [[ ${tests} == ON ]]; then
-    cmake -S "${fcore_source}" -B "${fcore_build}" "${common[@]}" \
-        "-DCMAKE_INSTALL_PREFIX=${fcore_prefix}" -DBUILD_SHARED_LIBS=OFF \
-        -DFCORE_BUILD_TESTS=ON -DFCORE_BUILD_EXAMPLES=OFF
-    cmake --build "${fcore_build}"
-    cmake --install "${fcore_build}"
-    prefix_path=${fcore_prefix}
-fi
-
-# ==============================================================================
 # Build and install numfort
 # ==============================================================================
 # Set every switch, including OFF, and require the selected BLAS provider.
 cmake -S "${numfort_source}" -B "${numfort_build}" "${common[@]}" \
-    "-DCMAKE_PREFIX_PATH=${prefix_path}" "-DCMAKE_INSTALL_PREFIX=${numfort_prefix}" \
+    "-DCMAKE_INSTALL_PREFIX=${numfort_prefix}" \
     "-DBUILD_SHARED_LIBS=${shared}" "-DNUMFORT_USE_MKL=${mkl}" "${blas_options[@]}" \
     "-DNUMFORT_BUILD_TESTS=${tests}" "-DNUMFORT_BUILD_EXAMPLES=${examples}" \
     "-DNUMFORT_USE_OPENMP=${openmp}" "-DNUMFORT_USE_LTO=${ipo}" \
@@ -149,13 +128,11 @@ cmake --build "${job_dir}/client"
 # ==============================================================================
 # Run tests and retain diagnostics
 # ==============================================================================
-# Run both suites even if one fails; assertion-only failures may still exit
-# zero.
+# CTest propagates executable failures to the runner.
 result=0
 if [[ ${tests} == ON ]]; then
-    ctest --test-dir "${fcore_build}" --parallel 1 --output-on-failure || result=1
     ctest --test-dir "${numfort_build}" --parallel 1 --output-on-failure || result=1
-    printf 'CTest logs: %s/Testing/Temporary/LastTest.log\n' "${fcore_build}" "${numfort_build}"
+    printf 'CTest logs: %s/Testing/Temporary/LastTest.log\n' "${numfort_build}"
 else
     # Disabled tests must leave no registrations, including on repeated runs.
     registrations=$(ctest --test-dir "${numfort_build}" --show-only)

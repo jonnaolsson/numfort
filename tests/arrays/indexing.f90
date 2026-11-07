@@ -1,7 +1,6 @@
 program test_numfort_indexing
 
     use iso_fortran_env
-    use fcore_testing
     use numfort_arrays
     implicit none
 
@@ -12,29 +11,17 @@ program test_numfort_indexing
 contains
 
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort.arrays unit tests")
-
-    call test_ind2sub (tests)
-    ! call test_sub2ind (tests)
-
-    ! print test statistics
-    call tests%print ()
+    call test_ind2sub ()
+    ! call test_sub2ind ()
 
 end subroutine
 
-
-subroutine test_ind2sub (tests)
-
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_ind2sub ()
 
     integer (INTSIZE), dimension(:), allocatable :: lin, shp
     integer (INTSIZE), dimension(:, :), allocatable :: sub, sub2
     integer :: i, n
-
-    tc => tests%add_test ("ind2sub test cases")
 
     ! test conversion of 1-d arrays
     n = 100
@@ -43,8 +30,7 @@ subroutine test_ind2sub (tests)
     sub = -1
 
     call ind2sub ([n], lin, sub)
-    call tc%assert_true (all(lin == sub(:, 1)), &
-        "Conversion of 1d linear indices")
+    if (.not. (all (lin == sub(:, 1)))) error stop "Conversion of 1d linear indices"
     deallocate (lin, sub)
 
     ! check some simple transformations
@@ -60,22 +46,21 @@ subroutine test_ind2sub (tests)
     sub2(:, 1) = modulo (lin - 1, shp(1)) + 1
     sub2(:, 2) = ceiling (lin / real (shp(1)))
 
-    call tc%assert_true (all(sub(1,:) == [1, 1]), "in2dsub, shp = [7, 8]")
+    if (.not. (all (sub(1,:) == [1, 1]))) error stop "in2dsub, shp = [7, 8]"
     deallocate (lin, sub, sub2, shp)
 
     ! check fixed point of ind2sub / sub2ind
-    call ind2sub_fp (tc, [11], "sub2ind(ind2sub), shp = [11]")
-    call ind2sub_fp (tc, [7, 8], "sub2ind(ind2sub), shp = [7, 8]")
-    call ind2sub_fp (tc, [3, 5, 15], "sub2ind(ind2sub), shp = [3, 5, 15]")
-    call ind2sub_fp (tc, [3, 5, 15, 7], "sub2ind(ind2sub), shp = [3, 5, 15, 7]")
-    call ind2sub_fp (tc, [3, 5, 15, 1, 5], "sub2ind(ind2sub), shp = [3, 5, 15, 1, 5]")
+    call ind2sub_fp ([11])
+    call ind2sub_fp ([7, 8])
+    call ind2sub_fp ([3, 5, 15])
+    call ind2sub_fp ([3, 5, 15, 7])
+    call ind2sub_fp ([3, 5, 15, 1, 5])
 end subroutine
 
-subroutine ind2sub_fp (tc, shp, text)
+subroutine ind2sub_fp (shp)
     !*  Check fixed point x = ind2sub(sub2ind(x))
-    class (test_case), intent(in), pointer :: tc
     integer, intent(in), dimension(:) :: shp
-    character (len=*), intent(in) :: text
+        !* Shape used for the indexing round trip.
 
     integer (INTSIZE), dimension(:), allocatable :: lin, lin2
     integer (INTSIZE), dimension(:, :), allocatable :: sub
@@ -88,7 +73,7 @@ subroutine ind2sub_fp (tc, shp, text)
     call ind2sub (shp, lin, sub)
     call sub2ind (shp, sub, lin2)
 
-    call tc%assert_true (all(lin == lin2), text)
+    if (.not. (all (lin == lin2))) error stop "IND2SUB/SUB2IND round trip failed"
 end subroutine
 
 end program

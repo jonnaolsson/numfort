@@ -1,14 +1,10 @@
 
 
-subroutine __APPEND(test_gemm,__PREC) (tests)
+subroutine __APPEND(test_gemm,__PREC) ()
     !* TEST_GEMM implements unit tests for the F95 wrapper for GEMM.
     use blas_interfaces, only: BLAS_GEMM => GEMM
 
     integer, parameter  :: PREC = __PREC
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
-    type (str) :: msg
 
     integer :: m, n, k, lda, ldb, ldc
     integer, parameter :: mrange(*) = [1, 2, 10]
@@ -17,11 +13,9 @@ subroutine __APPEND(test_gemm,__PREC) (tests)
     real (PREC), dimension(:,:), allocatable :: a, b, c, c95
     real (PREC) :: alpha, beta
     character (1) :: transa, transb
-    character (1) :: trans_range(2) = ['N', 'T']
+    character (1) :: trans_range(2) = ["N", "T"]
 
     integer :: i, j, ik, ita, itb
-
-    tc => tests%add_test ("GEMM wrapper for real*" // str(PREC))
 
     call set_seed (123)
 
@@ -39,7 +33,7 @@ subroutine __APPEND(test_gemm,__PREC) (tests)
                     do ik = 1, size(krange)
                         k = krange(ik)
 
-                        if (transa == 'N') then
+                        if (transa == "N") then
                             allocate (a(m, k))
                             lda = m
                         else
@@ -47,7 +41,7 @@ subroutine __APPEND(test_gemm,__PREC) (tests)
                             lda = k
                         end if
 
-                        if (transb == 'N') then
+                        if (transb == "N") then
                             allocate (b(k, n))
                             ldb = k
                         else
@@ -74,25 +68,21 @@ subroutine __APPEND(test_gemm,__PREC) (tests)
 
                         ! Call F95 interface (with default alpha, beta) and default
                         ! TRANS{A,B} (if applicable)
-                        if (transa == 'N' .and. transb == 'N') then
+                        if (transa == "N" .and. transb == "N") then
                             call GEMM (a, b, c95)
                         else
                             call GEMM (a, b, c95, transa=transa, transb=transb)
                         end if
 
-                        msg = 'GEMM (transa=' // transa // 'transb=' // transb &
-                            // ', m=' // str(m) // ', n=' // str(n) &
-                            // ', k=' // str(k) // ')'
-                        call tc%assert_true (all(c==c95), msg)
+                        if (.not. (all (c == c95))) &
+                            error stop "GEMM with default arguments differs from BLAS"
 
                         call GEMM (a, b, c95, alpha=alpha, beta=beta, &
                             transa=transa, transb=transb)
 
-                        msg = 'GEMM (transa=' // transa // 'transb=' // transb &
-                            // ', m=' // str(m) // ', n=' // str(n) &
-                            // ', k=' // str(k) &
-                            // ', alpha=' // str(alpha, 'f0.2') // ')'
-                        call tc%assert_true (all(c==c95), msg)
+                        if (.not. (all (c == c95))) &
+                            error stop "GEMM with explicit default scaling " // &
+                                "differs from BLAS"
 
                         ! === Call with non-default ALPHA, BETA ===
                         c95(:,:) = c
@@ -104,11 +94,8 @@ subroutine __APPEND(test_gemm,__PREC) (tests)
                         call GEMM (a, b, c95, alpha=alpha, beta=beta, &
                             transa=transa, transb=transb)
 
-                        msg = 'GEMM (transa=' // transa // 'transb=' // transb &
-                            // ', m=' // str(m) // ', n=' // str(n) &
-                            // ', k=' // str(k) &
-                            // ', alpha=' // str(alpha, 'f0.2') // ')'
-                        call tc%assert_true (all(c==c95), msg)
+                        if (.not. (all (c == c95))) &
+                            error stop "GEMM with scaling differs from BLAS"
 
                         deallocate (a, b, c, c95)
 

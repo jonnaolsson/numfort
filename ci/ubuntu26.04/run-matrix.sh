@@ -2,13 +2,13 @@
 
 # Schedule numfort's compiler and build-option matrix with CTest.
 #
-# - Run inside the Fortran CI image with numfort and fcore sources mounted.
+# - Run inside the Fortran CI image with numfort sources mounted.
 # - List configurations with --list, or select jobs by their matrix names.
 # - Select all configurations when no job names are given.
 # - Limit concurrent configurations with --jobs N (default: 1).
 # - Use with-oneapi for selections that include ifx or MKL.
 # - Save the manifest, worker logs, and ordered summary under BUILD_ROOT/matrix.
-# - Return nonzero for failed or incomplete jobs; report ASSERTIONS separately.
+# - Return nonzero for failed or incomplete jobs.
 
 # ==============================================================================
 # Execution environment
@@ -137,12 +137,12 @@ ctest --test-dir "${run_dir}/scheduler" --parallel "${parallel}" \
 # ==============================================================================
 # Workers write separate rows; merge them in selection order after CTest exits.
 summary=${run_dir}/summary.tsv
-printf 'job\tresult\texit_code\tassertion_lines\tlog\n' > "${summary}"
+printf 'job\tresult\texit_code\tlog\n' > "${summary}"
 for name in "${selected[@]}"; do
     if [[ -f ${run_dir}/${name}.tsv ]]; then
         cat -- "${run_dir}/${name}.tsv" >> "${summary}"
     else
-        printf '%s\tINCOMPLETE\t-\t-\t%s\n' "${name}" "${run_dir}/${name}.log" >> "${summary}"
+        printf '%s\tINCOMPLETE\t-\t%s\n' "${name}" "${run_dir}/${name}.log" >> "${summary}"
         result=1
     fi
 done

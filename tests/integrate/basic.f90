@@ -5,9 +5,6 @@ program test_nf_integrate_basic
     use numfort_arrays
     use numfort_integrate
 
-    use fcore_testing, only: test_suite, test_case
-    use fcore_common, only: str, operator(//)
-
     use tests_nf_integrate_funcs
 
     implicit none
@@ -23,32 +20,20 @@ program test_nf_integrate_basic
 
    integer, parameter :: NPOINTS(*) = [4, 7, 10, 13, 100]
 
-
-    call test_all()
+    call test_all ()
 
 contains
 
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort_interpolate_basic unit tests")
-
-    call test_trapezoid (tests)
-
-    ! print test statistics
-    call tests%print ()
+    call test_trapezoid ()
 
 end subroutine
 
-
-
-subroutine test_trapezoid (tests)
+subroutine test_trapezoid ()
     !*  Unit tests for trapezoid rule
 
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
     type (status_t) :: status
-    type (str) :: msg
 
     real (PREC), parameter :: tol = 1d-7
         !   Error tolerance of Fortran vs. Scipy solution
@@ -68,50 +53,43 @@ subroutine test_trapezoid (tests)
     real (PREC) :: a, b
     integer :: i, j, k, n
 
-    tc => tests%add_test ("Trapezoid rule")
-
     ! Tests with degenerate parameters
     allocate (x(0), fx(0))
     status = NF_STATUS_UNDEFINED
     call trapezoid (fx, res, x=x, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Zero-length input array")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Zero-length input array"
     deallocate (x, fx)
 
     allocate (x(1), fx(0))
     x(1) = 0.0
     status = NF_STATUS_UNDEFINED
     call trapezoid (fx, res, x=x, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "fx, x of different length")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "fx, x of different length"
     deallocate (x, fx)
 
     allocate (fx(1), source=0.0_PREC)
     status = NF_STATUS_UNDEFINED
     call trapezoid (fx, res, dx=1.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Length-1 fx array")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Length-1 fx array"
     deallocate (fx)
 
     allocate (fx(2), source=0.0_PREC)
     status = NF_STATUS_UNDEFINED
     call trapezoid (fx, res, dx=0.0_PREC, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid dx parameter")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid dx parameter"
     deallocate (fx)
 
     ! Test API that uses function argument and integration interval
     ! Test with too few evaluation NPOINTS, need n > 1
     status = NF_STATUS_UNDEFINED
     call trapezoid (fcn1, 0.0_PREC, 0.0_PREC, 1, res, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Integrand: n too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Integrand: n too small"
     
     ! Test with degenerate interval
     status = NF_STATUS_UNDEFINED
     call trapezoid (fcn1, 0.0_PREC, 0.0_PREC, 2, res, status)
-    call tc%assert_true (status == NF_STATUS_OK .and. (res == 0.0), &
-        "Integrand: integrate over singleton set")
+    if (.not. (status == NF_STATUS_OK .and. (res == 0.0))) &
+        error stop "Integrand: integrate over singleton set"
 
     ! Iterate over test functions; for each test function, test with
     ! all number of points.
@@ -145,10 +123,9 @@ subroutine test_trapezoid (tests)
             call trapezoid (fx, res, x=x, status=status)
             diff = abs(res - INT_SCIPY(k, i))
 
-            msg = "Func. " // str(i, "i0") // "; array API; n=" // str(n, "i0") &
-                // "; res=" // str(res, "f0.8")
-            call tc%assert_true (diff < tol .and. status == NF_STATUS_OK, &
-                msg%to_char()) 
+            if (.not. (diff < tol .and. status == NF_STATUS_OK)) &
+                error stop "TRAPEZOID array interface disagrees with the " // &
+                    "reference integral"
             deallocate (fx, x)
 
             ! Test with procedure argument
@@ -156,14 +133,12 @@ subroutine test_trapezoid (tests)
             status = NF_STATUS_UNDEFINED
             call trapezoid (ptr_fcn, a, b, n, res, status)
             diff = abs(res - INT_SCIPY(k, i))
-            msg = "Func. " // str(i, "i0") // "; fcn API; n=" // str(n, "i0") &
-                // "; res=" // str(res, "f0.8")
-            call tc%assert_true (diff < tol .and. status == NF_STATUS_OK, &
-                msg%to_char()) 
+            if (.not. (diff < tol .and. status == NF_STATUS_OK)) &
+                error stop "TRAPEZOID procedure interface disagrees with the " // &
+                    "reference integral"
 
         end do
     end do
-
 
 end subroutine
 

@@ -1,6 +1,5 @@
 
 
-
 program test_ppoly_tensor
     !*  Unit tests for function approximation with tensor products of
     !   piecewise polynomials
@@ -15,9 +14,6 @@ program test_ppoly_tensor
     use numfort_interpolate
     use numfort_polynomial
 
-    use fcore_testing, only: test_suite, test_case
-    use fcore_strings
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -26,36 +22,22 @@ program test_ppoly_tensor
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
-
-    call tests%set_label ('Unit tests for tensor products of piecewise polynomials')
-
-    call test_ppoly2d_fit_input (tests)
-    call test_ppoly2d_val_input (tests)
-    call test_ppoly2d_val_bilinear (tests)
-    call test_ppoly2d_val_bilinear_der (tests)
-
-    call tests%print ()
+    call test_ppoly2d_fit_input ()
+    call test_ppoly2d_val_input ()
+    call test_ppoly2d_val_bilinear ()
+    call test_ppoly2d_val_bilinear_der ()
 
 end subroutine test_all
 
-
-
-subroutine test_ppoly2d_fit_input (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_ppoly2d_fit_input ()
 
     real (PREC), allocatable :: x1(:), x2(:), y(:,:)
     real (PREC), dimension(:), allocatable :: knots, coefs
     integer :: nknots, ncoefs, n1, n2, n(2), k
     type (ppoly2d) :: pp
     type (status_t) :: status
-
-    tc => tests%add_test ('PPOLY2D_FIT input checks')
 
     ! Check with arrays X1, X2 that are both too small
     n1 = 0
@@ -71,7 +53,7 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "X1, x2 too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "X1, x2 too small"
     deallocate (x1, x2, y, knots, coefs)
 
     ! Check with array X1 too small
@@ -88,7 +70,7 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "X1 too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "X1 too small"
     deallocate (x1, x2, y, knots, coefs)
 
     ! Check with array X2 too small
@@ -105,9 +87,8 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, "X2 too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "X2 too small"
     deallocate (x1, x2, y, knots, coefs)
-
 
     ! Check with non-conformable array Y
     n1 = 2
@@ -123,8 +104,8 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Y not conformable with X1, X2")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Y not conformable with X1, X2"
     deallocate (x1, x2, y, knots, coefs)
 
     ! Check with KNOTS array too small
@@ -141,8 +122,7 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "KNOTS array too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "KNOTS array too small"
     deallocate (x1, x2, y, knots, coefs)
 
     ! Check with COEFS array too small
@@ -159,8 +139,7 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "COEFS array too small")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "COEFS array too small"
     deallocate (x1, x2, y, knots, coefs)
 
     ! Check with KNOTS, COEFS arrays having non-conformable size
@@ -177,8 +156,8 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "KNOTS, COEFS have non-conformable size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "KNOTS, COEFS have non-conformable size"
     deallocate (x1, x2, y, knots, coefs)
 
     ! Invalid polynomial degree
@@ -195,18 +174,12 @@ subroutine test_ppoly2d_fit_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1, x2, y, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Invalid polynomial degree")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid polynomial degree"
     deallocate (x1, x2, y, knots, coefs)
 
 end subroutine
 
-
-
-subroutine test_ppoly2d_val_input (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_ppoly2d_val_input ()
 
     real (PREC), allocatable :: x1a(:), x2a(:), ya(:), x1in(:), x2in(:), yin(:,:)
     real (PREC), dimension(:), allocatable :: knots, coefs
@@ -215,8 +188,6 @@ subroutine test_ppoly2d_val_input (tests)
     integer (NF_ENUM_KIND) :: ext
     type (ppoly2d) :: pp
     type (status_t) :: status
-
-    tc => tests%add_test ('PPOLY2D_VAL input checks')
 
     n1 = 3
     n2 = 6
@@ -248,16 +219,16 @@ subroutine test_ppoly2d_val_input (tests)
     allocate (x1a(nx), x2a(nx+1), ya(nx))
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X1, X2")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X1, X2"
     deallocate (x1a, x2a, ya)
 
     ! Non-conformable X1, Y
     nx = 2
     allocate (x1a(nx), x2a(nx), ya(nx-1))
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable arrays X1, Y")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable arrays X1, Y"
     deallocate (x1a, x2a, ya)
 
     ! KNOTS has wrong size
@@ -266,8 +237,7 @@ subroutine test_ppoly2d_val_input (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots(1:nknots-1), coefs, x1a, x2a, ya, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "KNOTS array has wrong size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "KNOTS array has wrong size"
     deallocate (x1a, x2a, ya)
 
     ! COEFS has wrong size
@@ -275,8 +245,7 @@ subroutine test_ppoly2d_val_input (tests)
     allocate (x1a(nx), x2a(nx), ya(nx))
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs(1:ncoefs-1), x1a, x2a, ya, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "COEFS array has wrong size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "COEFS array has wrong size"
     deallocate (x1a, x2a, ya)
 
     ! EXT argument has unsupported value
@@ -286,8 +255,8 @@ subroutine test_ppoly2d_val_input (tests)
     ext = -1
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EXT argument has unsupported value")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EXT argument has unsupported value"
     deallocate (x1a, x2a, ya)
 
     ! EXT = NF_INTEPR_EVAL_CONST without EXT_VAL specified
@@ -297,48 +266,42 @@ subroutine test_ppoly2d_val_input (tests)
     ext = NF_INTERP_EVAL_CONST
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "EXT=NF_INTERP_EVAL_CONST but EXT_VAL missing")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "EXT=NF_INTERP_EVAL_CONST but EXT_VAL missing"
     deallocate (x1a, x2a, ya)
 
     ! Scalar interface: KNOTS array has wrong size
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots(1:nknots-1), coefs, x1, x2, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Scalar API: KNOTS array has wrong size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Scalar API: KNOTS array has wrong size"
 
     ! Scalar interface: COEFS array has wrong size
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs(1:ncoefs-1), x1, x2, y, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Scalar API: COEFS array has wrong size")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Scalar API: COEFS array has wrong size"
 
     ! Scalar interface: EXT argument has unsupported value
     ext = -1
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Scalar API: EXT argument has unsupported value")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Scalar API: EXT argument has unsupported value"
 
     ! EXT = NF_INTEPR_EVAL_CONST without EXT_VAL specified
     ext = NF_INTERP_EVAL_CONST
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Scalar API: EXT=NF_INTERP_EVAL_CONST but EXT_VAL missing")
-
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Scalar API: EXT=NF_INTERP_EVAL_CONST but EXT_VAL missing"
 
     deallocate (knots, coefs)
 
 end subroutine
 
-
-
-subroutine test_ppoly2d_val_bilinear (tests)
+subroutine test_ppoly2d_val_bilinear ()
     !*  Unit tests for evaluating piecewise bilinear polynomials
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), allocatable :: x1a(:), x2a(:), ya(:), x1in(:), x2in(:), yin(:,:)
     real (PREC), allocatable :: ya_ok(:)
@@ -348,8 +311,6 @@ subroutine test_ppoly2d_val_bilinear (tests)
     integer (NF_ENUM_KIND) :: ext
     type (ppoly2d) :: pp
     type (status_t) :: status
-
-    tc => tests%add_test ('PPOLY2D_VAL unit tests')
 
     ! Test 1: min. number of knots, bilinear function
     n1 = 2
@@ -374,8 +335,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1in, x2in, yin, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "Knots: " // str_array(n) // "; fit to bilinear polynomial")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Knots: [2, 2]; fit to bilinear polynomial"
     deallocate (x1in, x2in, yin)
 
     ! === Evaluate bilinear function at interior points ===
@@ -389,9 +350,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
     ! Evaluate approx
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (ya, ya_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; evaluate at interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (ya, ya_ok, atol=1.0d-10))) &
+        error stop "Knots: [2, 2]; evaluate at interior points"
 
     deallocate (x1a, x2a, ya, ya_ok)
 
@@ -407,9 +367,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, &
         ext=NF_INTERP_EVAL_EXTRAPOLATE, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (ya, ya_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; evaluate at non-interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (ya, ya_ok, atol=1.0d-10))) &
+        error stop "Knots: [2, 2]; evaluate at non-interior points"
 
     deallocate (x1a, x2a, ya, ya_ok)
     deallocate (knots, coefs)
@@ -437,8 +396,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1in, x2in, yin, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "Knots: " // str_array(n) // "; fit bilinear polynomial")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Knots: [11, 7]; fit bilinear polynomial"
     deallocate (x1in, x2in, yin)
 
     ! === Evaluate bilinear function at interior points ===
@@ -452,9 +411,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
     ! Evaluate approx
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (ya, ya_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; evaluate at interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (ya, ya_ok, atol=1.0d-10))) &
+        error stop "Knots: [11, 7]; evaluate at interior points"
 
     deallocate (x1a, x2a, ya, ya_ok)
 
@@ -470,9 +428,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
     status = NF_STATUS_UNDEFINED
     ext = NF_INTERP_EVAL_EXTRAPOLATE
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (ya, ya_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; evaluate at non-interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (ya, ya_ok, atol=1.0d-10))) &
+        error stop "Knots: [11, 7]; evaluate at non-interior points"
 
     deallocate (x1a, x2a, ya, ya_ok)
     deallocate (knots, coefs)
@@ -500,8 +457,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1in, x2in, yin, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "Knots: " // str_array(n) // "; fit to linear polynomial")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Knots: [8, 15]; fit to linear polynomial"
     deallocate (x1in, x2in, yin)
 
     ! === Evaluate using extrapolation ===
@@ -516,9 +473,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
     status = NF_STATUS_UNDEFINED
     ext = NF_INTERP_EVAL_EXTRAPOLATE
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, ext=ext, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (ya, ya_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; evaluate at non-interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (ya, ya_ok, atol=1.0d-10))) &
+        error stop "Knots: [8, 15]; evaluate at non-interior points"
 
     deallocate (x1a, x2a, ya, ya_ok)
     deallocate (knots, coefs)
@@ -546,8 +502,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1in, x2in, yin, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "Knots: " // str_array(n) // "; fit to bilinear polynomial")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Knots: [21, 33]; fit to bilinear polynomial"
     deallocate (x1in, x2in, yin)
 
     ! === Evaluate using extrapolation ===
@@ -563,8 +519,9 @@ subroutine test_ppoly2d_val_bilinear (tests)
     do i = 1, nx
         call ppolyval (pp, knots, coefs, x1a(i), x2a(i), ya(i), ext=ext)
     end do
-    call tc%assert_true (all_close (ya, ya_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; evaluate at non-interior points using scalar API")
+    if (.not. (all_close (ya, ya_ok, atol=1.0d-10))) &
+        error stop "Knots: [21, 33]; evaluate at non-interior points using scalar " &
+            // "API"
 
     deallocate (x1a, x2a, ya, ya_ok)
     deallocate (knots, coefs)
@@ -592,8 +549,8 @@ subroutine test_ppoly2d_val_bilinear (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1in, x2in, yin, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "Knots: " // str_array(n) // "; fit to higher-order polynomial")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Knots: [11, 7]; fit to higher-order polynomial"
 
     ! === Evaluate at non-interior points ===
     nx = 1
@@ -607,20 +564,15 @@ subroutine test_ppoly2d_val_bilinear (tests)
     ! Evaluate approx
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, ya, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (ya, ya_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; eval at non-interior points; compare to INTERP_BILINEAR")
-
+    if (.not. (status == NF_STATUS_OK .and. all_close (ya, ya_ok, atol=1.0d-10))) &
+        error stop "Knots: [11, 7]; eval at non-interior points; compare to " // &
+            "INTERP_BILINEAR"
 
 end subroutine
 
-
-subroutine test_ppoly2d_val_bilinear_der (tests)
+subroutine test_ppoly2d_val_bilinear_der ()
     !*  Unit tests for evaluating partial derivatives of piecewise bilinear
     !   polynomials
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     real (PREC), allocatable :: x1in(:), x2in(:), yin(:,:)
     real (PREC), dimension(:), allocatable :: x1a, x2a, dx1, dx2
@@ -630,8 +582,6 @@ subroutine test_ppoly2d_val_bilinear_der (tests)
     real (PREC) :: x1bnd(2), x2bnd(2)
     type (ppoly2d) :: pp
     type (status_t) :: status
-
-    tc => tests%add_test ('PPOLY2D_VAL derivative unit tests')
 
     ! === Fit to bilinear function ===
     n1 = 2
@@ -656,8 +606,8 @@ subroutine test_ppoly2d_val_bilinear_der (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1in, x2in, yin, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "Knots: " // str_array(n) // "; fit to bilinear polynomial")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Knots: [2, 2]; fit to bilinear polynomial"
     deallocate (x1in, x2in, yin)
 
     ! === Evaluate bilinear function at interior points ===
@@ -671,14 +621,12 @@ subroutine test_ppoly2d_val_bilinear_der (tests)
     ! Evaluate approx
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, dx1, m=1, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (dx1, dx1_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; eval derivative for dim=1 at interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (dx1, dx1_ok, atol=1.0d-10))) &
+        error stop "Knots: [2, 2]; eval derivative for dim=1 at interior points"
 
     call ppolyval (pp, knots, coefs, x1a, x2a, dx2, m=1, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (dx2, dx2_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; eval derivative for dim=2 at interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (dx2, dx2_ok, atol=1.0d-10))) &
+        error stop "Knots: [2, 2]; eval derivative for dim=2 at interior points"
 
     deallocate (x1a, x2a, dx1, dx2, dx1_ok, dx2_ok)
 
@@ -693,19 +641,16 @@ subroutine test_ppoly2d_val_bilinear_der (tests)
     ! Evaluate approx
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, dx1, m=1, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (dx1, dx1_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; eval derivative for dim=1 at non-interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (dx1, dx1_ok, atol=1.0d-10))) &
+        error stop "Knots: [2, 2]; eval derivative for dim=1 at non-interior points"
 
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, dx2, m=1, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (dx2, dx2_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; eval derivative for dim=2 at non-interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (dx2, dx2_ok, atol=1.0d-10))) &
+        error stop "Knots: [2, 2]; eval derivative for dim=2 at non-interior points"
 
     deallocate (x1a, x2a, dx1, dx2, dx1_ok, dx2_ok)
     deallocate (knots, coefs)
-
 
     ! === Fit to linear function ===
     n1 = 11
@@ -730,8 +675,8 @@ subroutine test_ppoly2d_val_bilinear_der (tests)
 
     status = NF_STATUS_UNDEFINED
     call ppolyfit (pp, x1in, x2in, yin, k, knots, coefs, status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "Knots: " // str_array(n) // "; fit to linear polynomial")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Knots: [11, 7]; fit to linear polynomial"
     deallocate (x1in, x2in, yin)
 
     ! === Evaluate linear function at interior points ===
@@ -745,20 +690,16 @@ subroutine test_ppoly2d_val_bilinear_der (tests)
     ! Evaluate approx
     status = NF_STATUS_UNDEFINED
     call ppolyval (pp, knots, coefs, x1a, x2a, dx1, m=1, dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (dx1, dx1_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; eval derivative for dim=1 at interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (dx1, dx1_ok, atol=1.0d-10))) &
+        error stop "Knots: [11, 7]; eval derivative for dim=1 at interior points"
 
     call ppolyval (pp, knots, coefs, x1a, x2a, dx2, m=1, dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_OK &
-        .and. all_close (dx2, dx2_ok, atol=1.0d-10), &
-        "Knots: " // str_array(n) // "; eval derivative for dim=2 at interior points")
+    if (.not. (status == NF_STATUS_OK .and. all_close (dx2, dx2_ok, atol=1.0d-10))) &
+        error stop "Knots: [11, 7]; eval derivative for dim=2 at interior points"
 
     deallocate (x1a, x2a, dx1, dx2, dx1_ok, dx2_ok)
 
 end subroutine
-
-
 
 elemental subroutine fcn1 (x1, x2, y, dx1, dx2)
     real (PREC), intent(in) :: x1, x2
@@ -781,7 +722,6 @@ elemental subroutine fcn1 (x1, x2, y, dx1, dx2)
     end if
 end subroutine
 
-
 elemental subroutine fcn2 (x1, x2, y, dx1, dx2)
     !*  Linear test function
     real (PREC), intent(in) :: x1, x2
@@ -798,7 +738,6 @@ elemental subroutine fcn2 (x1, x2, y, dx1, dx2)
     if (present(dx2)) dx2 = COEFS(2)
 end subroutine
 
-
 elemental subroutine fcn3 (x1, x2, y)
     !*  Function that cannot be exactly approximated by bilinear polynomial
     real (PREC), intent(in) :: x1, x2
@@ -807,7 +746,5 @@ elemental subroutine fcn3 (x1, x2, y)
     y = -1.23d0 + 2.56d0*x1 - 3.234d0 * x2 + 2.345 * x1 * x2 &
         - 0.234d0*x1**2.0 + 2.345d0 * x2**2.0
 end subroutine
-
-
 
 end program

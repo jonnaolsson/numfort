@@ -8,9 +8,6 @@ program test_stats_markov
     use numfort_common_testing
     use numfort_common_workspace, workspace => workspace_real64
 
-    use fcore_strings
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -19,32 +16,22 @@ program test_stats_markov
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_tauchen ()
+    call test_rouwenhorst_iid ()
+    call test_rouwenhorst_python ()
 
-    call tests%set_label ("stats_markov unit tests")
+    call test_histogram ()
 
-    call test_tauchen (tests)
-    call test_rouwenhorst_iid (tests)
-    call test_rouwenhorst_python (tests)
-
-    call test_histogram (tests)
-
-    call test_simulate (tests)
-    call test_simulate_advanced (tests)
-
-    call tests%print ()
+    call test_simulate ()
+    call test_simulate_advanced ()
 
 end subroutine
 
-
-subroutine test_tauchen (tests)
+subroutine test_tauchen ()
     !*  TEST_TAUCHEN compares discretized moments of Markov chain generated
     !   using the TAUCHEN method to those tabulated in Tauchen (1986).
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
 
     real (PREC) :: rho, sigma
     real (PREC) :: rho_m, sigma_m
@@ -52,8 +39,6 @@ subroutine test_tauchen (tests)
     real (PREC), dimension(:,:), allocatable :: tm
     integer :: n
     type (status_t) :: status
-    
-    tc => tests%add_test ('TAUCHEN unit tests')
 
     ! Replicate results reported in Tauchen (1986) paper
     rho = 0.10d0
@@ -63,9 +48,9 @@ subroutine test_tauchen (tests)
     allocate (states(n), tm(n,n))
     call tauchen (rho, sigma, states, tm, sigma_cond=.false., status=status)
     call markov_moments (states, tm, acorr=rho_m, sigma=sigma_m, status=status)
-    call tc%assert_true (all_close (rho_m, 0.1d0, atol=1.0d-3) .and. &
-        all_close (sigma_m, 0.103d0, atol=1.0d-3), &
-        "Moments for rho=" // str(rho, 'f4.2') // ", sigma=" // str(sigma, 'f5.3'))
+    if (.not. (all_close (rho_m, 0.1d0, atol=1.0d-3) .and. all_close (sigma_m, &
+        0.103d0, atol=1.0d-3))) &
+        error stop "Tauchen moments differ from the reference"
     deallocate (states, tm)
 
     rho = 0.80d0
@@ -75,9 +60,9 @@ subroutine test_tauchen (tests)
     allocate (states(n), tm(n,n))
     call tauchen (rho, sigma, states, tm, sigma_cond=.false., status=status)
     call markov_moments (states, tm, acorr=rho_m, sigma=sigma_m, status=status)
-    call tc%assert_true (all_close (rho_m, 0.798d0, atol=1.0d-3) .and. &
-        all_close (sigma_m, 0.176d0, atol=1.0d-3), &
-        "Moments for rho=" // str(rho, 'f4.2') // ", sigma=" // str(sigma, 'f5.3'))
+    if (.not. (all_close (rho_m, 0.798d0, atol=1.0d-3) .and. all_close (sigma_m, &
+        0.176d0, atol=1.0d-3))) &
+        error stop "Tauchen moments differ from the reference"
     deallocate (states, tm)
 
     rho = 0.90d0
@@ -87,9 +72,9 @@ subroutine test_tauchen (tests)
     allocate (states(n), tm(n,n))
     call tauchen (rho, sigma, states, tm, sigma_cond=.false., status=status)
     call markov_moments (states, tm, acorr=rho_m, sigma=sigma_m, status=status)
-    call tc%assert_true (all_close (rho_m, 0.898d0, atol=1.0d-3) .and. &
-        all_close (sigma_m, 0.253d0, atol=1.0d-3), &
-        "Moments for rho=" // str(rho, 'f4.2') // ", sigma=" // str(sigma, 'f5.3'))
+    if (.not. (all_close (rho_m, 0.898d0, atol=1.0d-3) .and. all_close (sigma_m, &
+        0.253d0, atol=1.0d-3))) &
+        error stop "Tauchen moments differ from the reference"
     deallocate (states, tm)
 
     rho = 0.90d0
@@ -99,9 +84,9 @@ subroutine test_tauchen (tests)
     allocate (states(n), tm(n,n))
     call tauchen (rho, sigma, states, tm, sigma_cond=.false., status=status)
     call markov_moments (states, tm, acorr=rho_m, sigma=sigma_m, status=status)
-    call tc%assert_true (all_close (rho_m, 0.932d0, atol=1.0d-3) .and. &
-        all_close (sigma_m, 0.291d0, atol=1.0d-3), &
-        "Moments for rho=" // str(rho, 'f4.2') // ", sigma=" // str(sigma, 'f5.3'))
+    if (.not. (all_close (rho_m, 0.932d0, atol=1.0d-3) .and. all_close (sigma_m, &
+        0.291d0, atol=1.0d-3))) &
+        error stop "Tauchen moments differ from the reference"
     deallocate (states, tm)
 
     ! Test some degenerate processes
@@ -112,16 +97,13 @@ subroutine test_tauchen (tests)
     allocate (states(n), tm(n,n))
     call tauchen (rho, sigma, states, tm, status=status)
     call markov_moments (states, tm, acorr=rho_m, sigma=sigma_m, status=status)
-    call tc%assert_true (all_close (rho_m, 0.0d0, atol=1.0d-8), &
-        "Markov chain with rho=0")
+    if (.not. (all_close (rho_m, 0.0d0, atol=1.0d-8))) &
+        error stop "Tauchen returned nonzero autocorrelation for independent states"
     deallocate (states, tm)
 
 end subroutine
 
-
-subroutine test_rouwenhorst_iid (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_rouwenhorst_iid ()
 
     real (PREC) :: rho, sigma
     real (PREC) :: rho_m, sigma_m
@@ -130,25 +112,20 @@ subroutine test_rouwenhorst_iid (tests)
     integer :: n
     type (status_t) :: status
 
-    tc => tests%add_test ('ROUWENHORST (IID) unit tests')
-
     rho = 0.0d0
     sigma = sqrt(0.0522d0)
     n = 5
     allocate (states(n), tm(n,n))
     call rouwenhorst (rho, sigma, states, tm, status=status)
     call markov_moments (states, tm, acorr=rho_m, sigma=sigma_m, status=status)
-    call tc%assert_true (all_close (rho_m, 0.0d0, atol=1.0d-8), &
-        "Markov chain with rho=0")
+    if (.not. (all_close (rho_m, 0.0d0, atol=1.0d-8))) &
+        error stop "Rouwenhorst returned nonzero autocorrelation for independent " // &
+            "states"
     deallocate (states, tm)
-
 
 end subroutine
 
-
-subroutine test_rouwenhorst_python (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_rouwenhorst_python ()
 
     real (PREC) :: rho, sigma
     real (PREC), dimension(:), allocatable :: states, edist, edist2
@@ -190,8 +167,6 @@ subroutine test_rouwenhorst_python (tests)
         0.00390625d0, 0.03125d0, 0.109375d0, 0.21875d0, 0.2734375d0, &
         0.21875d0, 0.109375d0, 0.03125d0, 0.00390625d0 ]
 
-    tc => tests%add_test ('ROUWENHORST Fortran vs. Python unit tests')
-
     ! Compare to results from Python implementation for N=9, rho=0.9, sigma=0.1
     rho = 0.9d0
     sigma = 0.1d0
@@ -201,65 +176,60 @@ subroutine test_rouwenhorst_python (tests)
 
     call rouwenhorst (rho, sigma, states, tm, status=status)
 
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "ROUWENHORST exit code")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Rouwenhorst returned an error status"
 
-    call tc%assert_true (all_close (tm, TM2_desired, rtol=1.0d-7), &
-        "TM close to Python result")
+    if (.not. (all_close (tm, TM2_desired, rtol=1.0d-7))) &
+        error stop "Transition matrix differs from the Python reference"
 
-    call tc%assert_true (all_close (states, states2_desired, atol=1.0d-7), &
-        "States close to Python result")
+    if (.not. (all_close (states, states2_desired, atol=1.0d-7))) &
+        error stop "State grid differs from the Python reference"
 
     call markov_ergodic_dist (tm, edist, inverse=.true., work=work, status=status)
 
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "ERGODIC_DIST exit code")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Ergodic distribution solver returned an error status"
 
-    call tc%assert_true (all_close (edist, EDIST2_DESIRED, atol=1.0d-4), &
-        "Ergodic dist. close to Python result")
+    if (.not. (all_close (edist, EDIST2_DESIRED, atol=1.0d-4))) &
+        error stop "Ergodic distribution differs from the Python reference"
 
     tm_T(:,:) = transpose(tm)
     status = NF_STATUS_UNDEFINED
     call markov_ergodic_dist (tm_T, edist2, inverse=.true., transposed=.true., &
         work=work, status=status)
 
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "ERGODIC_DIST (is_transposed=.true.) exit code")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Ergodic distribution solver failed with transposed input"
 
-    call tc%assert_true (all_close (edist2, edist, atol=1.0d-10, rtol=0.0d0), &
-        "ERGODIC_DIST (is_transposed=.true.) result")
+    if (.not. (all_close (edist2, edist, atol=1.0d-10, rtol=0.0d0))) &
+        error stop "Ergodic distribution differs for transposed input"
 
     edist2(:) = 0.0
     status = NF_STATUS_UNDEFINED
     call markov_ergodic_dist (tm, edist2, inverse=.false., work=work, status=status)
 
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "ERGODIC_DIST (inverse=.false.) exit code")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Direct ergodic distribution solver returned an error status"
 
-    call tc%assert_true (all_close (edist, edist, atol=1.0d-10, rtol=0.0d0), &
-        "ERGODIC_DIST (inverse=.false.) result")
+    if (.not. (all_close (edist, edist, atol=1.0d-10, rtol=0.0d0))) &
+        error stop "Direct ergodic distribution comparison failed"
 
     edist2(:) = 0.0
     status = NF_STATUS_UNDEFINED
     call markov_ergodic_dist (tm_T, edist2, inverse=.false., transposed=.true., &
         work=work, status=status)
 
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "ERGODIC_DIST (inverse=.false., is_transposed=.true.) exit code")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "Direct ergodic solver failed with transposed input"
 
-    call tc%assert_true (all_close (edist, edist, atol=1.0d-10, rtol=0.0d0), &
-        "ERGODIC_DIST (inverse=.false., is_transposed=.true.) result")
+    if (.not. (all_close (edist, edist, atol=1.0d-10, rtol=0.0d0))) &
+        error stop "Transposed direct ergodic distribution comparison failed"
 
     deallocate (states, tm, tm_T, edist, edist2)
 
 end subroutine
 
-
-
-subroutine test_histogram (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_histogram ()
 
     type (status_t) :: status
 
@@ -268,8 +238,6 @@ subroutine test_histogram (tests)
     integer, dimension(:,:), allocatable :: trans_hist
     real (PREC) :: rho, sigma
     integer :: nobs, nstates
-
-    tc => tests%add_test ('Transition matrix -> histogram')
 
     rho = 0.9
     sigma = 0.2
@@ -286,17 +254,13 @@ subroutine test_histogram (tests)
     allocate (trans_hist(nstates,nstates))
 
     call trans_histogram (nobs, transm, trans_hist, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-            all (sum(trans_hist, dim=1) == sum(trans_hist, dim=2)) .and. &
-            sum(trans_hist) == nobs)
+    if (.not. (status == NF_STATUS_OK .and. all (sum (trans_hist, dim=1) == sum &
+        (trans_hist, dim=2)) .and. sum (trans_hist) == nobs)) &
+        error stop "Transition histogram failed the count conservation check"
 
 end subroutine
 
-
-subroutine test_simulate (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_simulate ()
 
     real (PREC), dimension(:,:), allocatable :: transm, transm_T
     real (PREC), dimension(:), allocatable :: states
@@ -308,10 +272,7 @@ subroutine test_simulate (tests)
     real (PREC), parameter :: SIGMA_ALL(*) = [ real (PREC) :: 0.01, 0.1, 0.2]
     integer, parameter :: N_ALL(*) = [3, 5, 7]
     logical :: transposed, values_ok
-    type (str) :: msg
     type (status_t) :: status, status1, status2
-
-    tc => tests%add_test ('Unit tests for Markov simulation routine')
 
     ! === Input checks ===
 
@@ -324,38 +285,40 @@ subroutine test_simulate (tests)
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate (transm, 1, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #1, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Markov simulation invalid-matrix check failed"
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate (transm, 1, sim, transposed=.true., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #1, transposed=.true.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Markov simulation invalid-matrix check failed with transposed " &
+            // "input"
 
     transm(:,:) = 1.0
     transm_T(:,:) = 1.0
     status = NF_STATUS_UNDEFINED
     call markov_simulate (transm, 1, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #2, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Markov simulation invalid-matrix check failed"
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate (transm, 1, sim, transposed=.true., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #2, transposed=.true.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Markov simulation invalid-matrix check failed with transposed " &
+            // "input"
 
     ! 2. Invalid initial value
     transm(:,:) = 1.0_PREC / n
     transm_T(:,:) = 1.0_PREC / n
     status = NF_STATUS_UNDEFINED
     call markov_simulate (transm, 0, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid initial state < 0, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Markov simulation invalid-state check failed"
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate (transm, n+1, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid initial state > N, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Markov simulation invalid-state check failed"
 
     deallocate (transm, transm_T, sim)
 
@@ -392,12 +355,10 @@ subroutine test_simulate (tests)
 
                 values_ok = all(sim == sim_T)
 
-                msg = 'Simulation for N=' // str(n, 'i0') &
-                    // '; rho=' // str(rho, 'f0.2') &
-                    // '; sigma=' // str(sigma, 'f0.2') &
-                    // ': transposed == non-transposed'
-                call tc%assert_true (values_ok .and. status1 == NF_STATUS_OK &
-                    .and. status2 == NF_STATUS_OK, msg)
+                if (.not. (values_ok .and. status1 == NF_STATUS_OK .and. status2 == &
+                    NF_STATUS_OK)) &
+                    error stop "Markov simulations differ for transposed and " // &
+                        "non-transposed inputs"
 
             end do
         end do
@@ -407,12 +368,7 @@ subroutine test_simulate (tests)
 
 end subroutine
 
-
-
-subroutine test_simulate_advanced (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
+subroutine test_simulate_advanced ()
 
     real (PREC), dimension(:,:), allocatable :: transm, transm_T
     real (PREC), dimension(:,:), allocatable :: pmf_trans, pmf_sample
@@ -425,12 +381,9 @@ subroutine test_simulate_advanced (tests)
     real (PREC), parameter :: RHO_ALL(*) = [ real (PREC) :: 0.0, 0.2d0, 0.5d0, 0.9d0]
     real (PREC), parameter :: SIGMA_ALL(*) = [ real (PREC) :: 0.01d0, 0.1d0, 0.2d0]
     integer, parameter :: N_ALL(*) = [3, 5]
-    real (PREC), parameter :: rtol = 5.0e-2_PREC, atol=1.0e-3_PREC
+    real (PREC), parameter :: rtol=5.0e-2_PREC, atol=1.0e-3_PREC
     logical :: transposed, values_ok
-    type (str) :: msg
     type (status_t) :: status, status1, status2
-
-    tc => tests%add_test ('Unit tests for Markov adv. simulation routine')
 
     ! === Input checks ===
 
@@ -443,38 +396,40 @@ subroutine test_simulate_advanced (tests)
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate_advanced (transm, 1, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #1, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Advanced Markov simulation invalid-matrix check failed"
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate_advanced (transm, 1, sim, transposed=.true., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #1, transposed=.true.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Advanced Markov simulation invalid-matrix check failed with " // &
+            "transposed input"
 
     transm(:,:) = 1.0
     transm_T(:,:) = 1.0
     status = NF_STATUS_UNDEFINED
     call markov_simulate_advanced (transm, 1, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #2, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Advanced Markov simulation invalid-matrix check failed"
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate_advanced (transm, 1, sim, transposed=.true., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid transm. #2, transposed=.true.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Advanced Markov simulation invalid-matrix check failed with " // &
+            "transposed input"
 
     ! 2. Invalid initial value
     transm(:,:) = 1.0_PREC / n
     transm_T(:,:) = 1.0_PREC / n
     status = NF_STATUS_UNDEFINED
     call markov_simulate_advanced (transm, 0, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid initial state < 0, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Advanced Markov simulation invalid-state check failed"
 
     status = NF_STATUS_UNDEFINED
     call markov_simulate_advanced (transm, n+1, sim, transposed=.false., status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid initial state > N, transposed=.false.')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Advanced Markov simulation invalid-state check failed"
 
     deallocate (transm, transm_T, sim)
 
@@ -513,12 +468,10 @@ subroutine test_simulate_advanced (tests)
 
                 values_ok = all(sim == sim_T)
 
-                msg = 'Simulation for N=' // str(n, 'i0') &
-                    // '; rho=' // str(rho, 'f0.2') &
-                    // '; sigma=' // str(sigma, 'f0.2') &
-                    // ': transposed == non-transposed'
-                call tc%assert_true (values_ok .and. status1 == NF_STATUS_OK &
-                    .and. status2 == NF_STATUS_OK, msg)
+                if (.not. (values_ok .and. status1 == NF_STATUS_OK .and. status2 == &
+                    NF_STATUS_OK)) &
+                    error stop "Advanced Markov simulations differ across " // &
+                        "transpose modes"
 
                 ! Check that generated sequence is close to actual
                 ! transition matrix
@@ -540,11 +493,9 @@ subroutine test_simulate_advanced (tests)
                 values_ok = all_close (pmf_sample, pmf_trans, &
                     atol=atol + 1.0e-3_PREC, rtol=rtol)
 
-                msg = 'Simulation for N=' // str(n, 'i0') &
-                        // '; rho=' // str(rho, 'f0.2') &
-                        // '; sigma=' // str(sigma, 'f0.2') &
-                        // ': close trans. frequencies'
-                call tc%assert_true (values_ok, msg)
+                if (.not. (values_ok)) &
+                    error stop "Advanced Markov simulation has unexpected " // &
+                        "transition frequencies"
 
             end do
         end do
@@ -554,8 +505,6 @@ subroutine test_simulate_advanced (tests)
     end do
 
 end subroutine
-
-
 
 pure subroutine count_trans (x, num)
     !*  COUNT_TRANS returns the number of observed transitions for each
@@ -578,7 +527,5 @@ pure subroutine count_trans (x, num)
     end do
 
 end subroutine
-
-
 
 end program

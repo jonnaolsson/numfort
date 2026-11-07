@@ -5,8 +5,6 @@ program test_optimize_simplex
     use, intrinsic :: ieee_arithmetic
     use, intrinsic :: iso_fortran_env
 
-    use fcore_common, FC_status_t => status_t
-    use fcore_testing
     use numfort_arrays
     use numfort_common_testing
     use numfort_optimize, workspace => workspace_real64, &
@@ -20,39 +18,30 @@ program test_optimize_simplex
 
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_quad ()
 
-    call tests%set_label ("Simplex wrapper unit tests")
-
-    call test_quad (tests)
-
-    call tests%print ()
 end subroutine
 
 
-subroutine test_quad (tests)
-    class (test_suite), intent(inout) :: tests
+subroutine test_quad ()
 
-    class (test_case), pointer :: tc
     type (optim_result) :: res
     integer, parameter :: NDIM = 4
     real (PREC), dimension(NDIM) :: x, x_desired
 
-    tc => tests%add_test ("Quadratic objective function")
-
     x_desired = 0.0
 
     ! Initial starting point
-    call arange(x)
+    call arange (x)
 
     call minimize_simplex (fcn_quad, x, tol=1.0d-5, res=res)
 
-    call tc%assert_true (res%status == NF_STATUS_OK, "Exit status")
-    call tc%assert_true (all(res%x == x), "X == RES%X")
-    call tc%assert_true (all_close (res%x, x_desired, atol=1.0d-3), &
-        "Correct minimizer X")
-    call tc%assert_true (abs(res%fx(1)) < 1.0d-3, &
-        "Correct minimal function value f(X)")
+    if (.not. (res%status == NF_STATUS_OK)) error stop "Exit status"
+    if (.not. (all (res%x == x))) error stop "X == RES%X"
+    if (.not. (all_close (res%x, x_desired, atol = 1.0d-3))) &
+        error stop "Correct minimizer X"
+    if (.not. (abs (res%fx(1)) < 1.0d-3)) &
+        error stop "Correct minimal function value f(X)"
 
 end subroutine
 

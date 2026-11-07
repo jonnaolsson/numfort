@@ -6,8 +6,7 @@
 # - Receive the run directory, job name, compiler, and build options as
 #   arguments.
 # - Delegate configuration, builds, installation, and tests to run-tests.sh.
-# - Archive previous CTest logs to avoid stale assertion counts.
-# - Preserve current CTest logs and count assertions even when tests exit zero.
+# - Archive previous CTest logs and preserve current logs.
 # - Write a separate result row and log for the parent matrix summary.
 # - Return the delegated runner's exit status to CTest.
 
@@ -46,13 +45,10 @@ if [[ ${compiler} == ifx ]]; then
     toolchain=ifx
 fi
 job_dir=${BUILD_ROOT:-/build}/${toolchain}/${config}/shared-${shared}-tests-${tests}-examples-${examples}-openmp-${openmp}-ipo-${ipo}-blas95-${blas95}-mkl-${mkl}
-# A configure/build failure must not reuse assertion counts from an earlier run.
-for library in fcore numfort; do
-    test_log=${job_dir}/${library}/Testing/Temporary/LastTest.log
-    if [[ -f ${test_log} ]]; then
-        mv -- "${test_log}" "${run_dir}/${name}-${library}-previous-LastTest.log"
-    fi
-done
+test_log=${job_dir}/numfort/Testing/Temporary/LastTest.log
+if [[ -f ${test_log} ]]; then
+    mv -- "${test_log}" "${run_dir}/${name}-numfort-previous-LastTest.log"
+fi
 
 # ==============================================================================
 # Configuration execution
@@ -64,18 +60,10 @@ BUILD_SHARED_LIBS=${shared} NUMFORT_BUILD_TESTS=${tests} \
     bash "${script_dir}/run-tests.sh" "${compiler}" "${config}" > "${log}" 2>&1 || code=$?
 
 # ==============================================================================
-# CTest log snapshots and assertion counts
+# CTest log snapshots
 # ==============================================================================
-assertions=0
-if [[ ${tests} == ON ]]; then
-    for library in fcore numfort; do
-        test_log=${job_dir}/${library}/Testing/Temporary/LastTest.log
-        if [[ -f ${test_log} ]]; then
-            cp -- "${test_log}" "${run_dir}/${name}-${library}-LastTest.log"
-            count=$(grep -Ec '[[:space:]]FAILED[[:space:]]*$' "${test_log}" || true)
-            assertions=$(( assertions + count ))
-        fi
-    done
+if [[ ${tests} == ON && -f ${test_log} ]]; then
+    cp -- "${test_log}" "${run_dir}/${name}-numfort-LastTest.log"
 fi
 
 # ==============================================================================
@@ -84,11 +72,9 @@ fi
 status=PASS
 if (( code != 0 )); then
     status=FAIL
-elif (( assertions > 0 )); then
-    status=ASSERTIONS
 fi
-printf '%s\t%s\t%s\t%s\t%s\n' "${name}" "${status}" "${code}" "${assertions}" "${log}" \
+printf '%s\t%s\t%s\t%s\n' "${name}" "${status}" "${code}" "${log}" \
     > "${run_dir}/${name}.tsv"
-printf '%s: %s (exit %s, assertion lines %s)\nLog: %s\n' \
-    "${name}" "${status}" "${code}" "${assertions}" "${log}"
+printf '%s: %s (exit %s)\nLog: %s\n' \
+    "${name}" "${status}" "${code}" "${log}"
 exit "${code}"

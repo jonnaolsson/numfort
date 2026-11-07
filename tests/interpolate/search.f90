@@ -9,8 +9,6 @@ program test_numfort_interpolate_search
     use numfort_interpolate
     use numfort_stats
 
-    use fcore_testing
-
     implicit none
 
     integer, parameter :: PREC = real64
@@ -19,49 +17,36 @@ program test_numfort_interpolate_search
 
     contains
 
-
 subroutine test_all ()
 
-    type (test_suite) :: tests
+    call test_bsearch ()
+    call test_bsearch_cached ()
 
-    call tests%set_label ("Interpolation SEARCH routines unit tests")
-
-    call test_bsearch (tests)
-    call test_bsearch_cached (tests)
-
-    call test_interp_find (tests)
-    call test_interp_find_decr (tests)
-    call test_interp_find_incr (tests)
-
-    call tests%print ()
+    call test_interp_find ()
+    call test_interp_find_decr ()
+    call test_interp_find_incr ()
 
 end subroutine
 
-
-
-subroutine test_bsearch (tests)
+subroutine test_bsearch ()
     !*  Unit tests for BSEARCH routine
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:), allocatable :: haystack
     real (PREC) :: needle
     integer :: i, n
-
-    tc => tests%add_test ("BSEARCH unit tests")
 
     n = 0
     allocate (haystack(n), source=0.0_PREC)
     needle = 0.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 0")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 0"
     deallocate (haystack)
 
     n = 1
     allocate (haystack(n), source=0.0_PREC)
     needle = 0.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 1")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 1"
     deallocate (haystack)
 
     n = 11
@@ -70,19 +55,19 @@ subroutine test_bsearch (tests)
 
     needle = -1.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 1, "needle < HAYSTACK(1)")
+    if (.not. (i == 1)) error stop "needle < HAYSTACK(1)"
 
     needle = 11.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 10, "needle > HAYSTACK(size(HAYSTACK))")
+    if (.not. (i == 10)) error stop "needle > HAYSTACK(size(HAYSTACK))"
 
     needle = 0.5d0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 1, "needle in first interval")
+    if (.not. (i == 1)) error stop "needle in first interval"
 
     needle = 9.5d0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 10, "needle in last interval")
+    if (.not. (i == 10)) error stop "needle in last interval"
 
     deallocate (haystack)
 
@@ -94,45 +79,39 @@ subroutine test_bsearch (tests)
 
     needle = 2.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 5, "Piecewise-constant HAYSTACK, lower bound")
+    if (.not. (i == 5)) error stop "Piecewise-constant HAYSTACK, lower bound"
 
     needle = 3.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 5, "Piecewise-constant HAYSTACK, interior value")
+    if (.not. (i == 5)) error stop "Piecewise-constant HAYSTACK, interior value"
 
     needle = 5.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 6, "Piecewise-constant HAYSTACK, upper bound")
+    if (.not. (i == 6)) error stop "Piecewise-constant HAYSTACK, upper bound"
 
     deallocate (haystack)
 
 end subroutine
 
-
-
-subroutine test_bsearch_cached (tests)
+subroutine test_bsearch_cached ()
     !*  Unit tests for BSEARCH routine
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:), allocatable :: haystack
     real (PREC) :: needle
     integer :: i, n
     type (search_cache) :: cache
 
-    tc => tests%add_test ("BSEARCH_CACHED unit tests")
-
     n = 0
     allocate (haystack(n), source=0.0_PREC)
     needle = 0.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 0")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 0"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 0 with cache")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 0 with cache"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 0 with cache, repeat call")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 0 with cache, repeat call"
 
     deallocate (haystack)
 
@@ -141,13 +120,13 @@ subroutine test_bsearch_cached (tests)
     needle = 0.0
 
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 1")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 1"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 1 with cache")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 1 with cache"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == -1, "size(HAYSTACK) = 1 with cache, repeat call")
+    if (.not. (i == - 1)) error stop "size(HAYSTACK) = 1 with cache, repeat call"
 
     deallocate (haystack)
 
@@ -157,54 +136,51 @@ subroutine test_bsearch_cached (tests)
 
     needle = -1.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 1, "needle < HAYSTACK(1)")
+    if (.not. (i == 1)) error stop "needle < HAYSTACK(1)"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 1, "needle < HAYSTACK(1) with cache")
+    if (.not. (i == 1)) error stop "needle < HAYSTACK(1) with cache"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 1, "needle < HAYSTACK(1) with cache, repeat call")
+    if (.not. (i == 1)) error stop "needle < HAYSTACK(1) with cache, repeat call"
 
     needle = 11.0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 10, "needle > HAYSTACK(size(HAYSTACK))")
+    if (.not. (i == 10)) error stop "needle > HAYSTACK(size(HAYSTACK))"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 10, "needle > HAYSTACK(size(HAYSTACK)) with cache")
+    if (.not. (i == 10)) error stop "needle > HAYSTACK(size(HAYSTACK)) with cache"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 10, "needle > HAYSTACK(size(HAYSTACK)) with cache, repeat call")
+    if (.not. (i == 10)) &
+        error stop "needle > HAYSTACK(size(HAYSTACK)) with cache, repeat call"
 
     needle = 0.5d0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 1, "needle in first interval")
+    if (.not. (i == 1)) error stop "needle in first interval"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 1, "needle in first interval with cache")
+    if (.not. (i == 1)) error stop "needle in first interval with cache"
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 1, "needle in first interval with cache, repeat call")
+    if (.not. (i == 1)) error stop "needle in first interval with cache, repeat call"
 
     needle = 9.5d0
     call bsearch (needle, haystack, i)
-    call tc%assert_true (i == 10, "needle in last interval")
+    if (.not. (i == 10)) error stop "needle in last interval"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 10, "needle in last interval with cache")
+    if (.not. (i == 10)) error stop "needle in last interval with cache"
 
     call bsearch_cached (needle, haystack, i, cache)
-    call tc%assert_true (i == 10, "needle in last interval with cache, repeat call")
+    if (.not. (i == 10)) error stop "needle in last interval with cache, repeat call"
 
     deallocate (haystack)
 
 end subroutine
 
-
-
-subroutine test_interp_find (tests)
+subroutine test_interp_find ()
     !*  Unit tests for INTERP_FIND routine
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     type (search_cache) :: cache
     type (status_t) :: status
     real (PREC), dimension(:), allocatable :: haystack, needles, rwork
@@ -213,8 +189,6 @@ subroutine test_interp_find (tests)
     integer :: i, ilb, n
     real (PREC) :: xi, wgt
     logical :: all_ok
-
-    tc => tests%add_test ("INTERP_FIND unit tests")
 
     ! === Input validation ===
 
@@ -227,14 +201,14 @@ subroutine test_interp_find (tests)
         ! Test scalar interface
         status = NF_STATUS_UNDEFINED
         call interp_find (xi, haystack, ilb, wgt, status=status)
-        call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-            "0d API: Invalid KNOTS argument")
+        if (.not. (status == NF_STATUS_INVALID_ARG)) &
+            error stop "0d API: Invalid KNOTS argument"
 
         ! Test 1d interface
         status = NF_STATUS_UNDEFINED
         call interp_find (needles, haystack, ilbound, weight, status=status)
-        call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-            "1d API: Invalid KNOTS argument")
+        if (.not. (status == NF_STATUS_INVALID_ARG)) &
+            error stop "1d API: Invalid KNOTS argument"
 
         deallocate (haystack)
     end do
@@ -248,8 +222,8 @@ subroutine test_interp_find (tests)
 
     status = NF_STATUS_UNDEFINED
     call interp_find (needles, haystack, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable NEEDLES, ILBOUND arguments")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable NEEDLES, ILBOUND arguments"
 
     deallocate (needles, ilbound, weight, haystack)
 
@@ -259,8 +233,8 @@ subroutine test_interp_find (tests)
 
     status = NF_STATUS_UNDEFINED
     call interp_find (needles, haystack, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        "Non-conformable ILBOUND, WEIGHT arguments")
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable ILBOUND, WEIGHT arguments"
 
     deallocate (needles, ilbound, weight, haystack)
 
@@ -292,8 +266,8 @@ subroutine test_interp_find (tests)
 
     all_ok = all(ilbound == ilbound_ok) .and. all(weight(1:n-1) == 1.0_PREC)
     all_ok = all_ok .and. (weight(n) == 0.0_PREC)
-    call tc%assert_true (all_ok .and. status == NF_STATUS_OK, &
-        '0d API: NEEDLES identical to KNOTS')
+    if (.not. (all_ok .and. status == NF_STATUS_OK)) &
+        error stop "0d API: NEEDLES identical to KNOTS"
 
     ! Array interface
     ilbound(:) = 0
@@ -312,7 +286,7 @@ subroutine test_interp_find (tests)
     allocate (needles(n+1), haystack(n), ilbound(n+1), ilbound_ok(n+1))
     allocate (weight(n+1), weight_ok(n+1))
 
-    call arange(haystack, 1.0_PREC)
+    call arange (haystack, 1.0_PREC)
     needles(1) = 0.5_PREC
     needles(2:n) = (haystack(2:n) + haystack(1:n-1)) / 2.0_PREC
     needles(n+1) = 10.5
@@ -320,7 +294,7 @@ subroutine test_interp_find (tests)
     needles(4) = 0.0
     needles(7) = 11.0
 
-    call arange(ilbound_ok(2:n-1), 1)
+    call arange (ilbound_ok(2:n-1), 1)
     ilbound_ok(1) = 1
     ilbound_ok(n:n+1) = n-1
     ilbound_ok(4) = 1
@@ -342,8 +316,8 @@ subroutine test_interp_find (tests)
     all_ok = all(ilbound == ilbound_ok)
     all_ok = all_ok .and. all_close (weight, weight_ok, rtol=0.0_PREC, atol=1.0e-12_PREC)
 
-    call tc%assert_true (all_ok .and. status == NF_STATUS_OK, &
-        "0d API: Mix of interior and non-interior interpolation points")
+    if (.not. (all_ok .and. status == NF_STATUS_OK)) &
+        error stop "0d API: Mix of interior and non-interior interpolation points"
 
     ! 1d interface, default extrapolation
     status = NF_STATUS_UNDEFINED
@@ -355,8 +329,8 @@ subroutine test_interp_find (tests)
     all_ok = all(ilbound == ilbound_ok)
     all_ok = all_ok .and. all_close (weight, weight_ok, rtol=0.0_PREC, atol=1.0e-12_PREC)
 
-    call tc%assert_true (all_ok .and. status == NF_STATUS_OK, &
-        "1d API: Mix of interior and non-interior interpolation points ")
+    if (.not. (all_ok .and. status == NF_STATUS_OK)) &
+        error stop "1d API: Mix of interior and non-interior interpolation points "
 
     ! === No extrapolation, relace with boundary values ===
 
@@ -381,8 +355,8 @@ subroutine test_interp_find (tests)
     all_ok = all(ilbound == ilbound_ok)
     all_ok = all_ok .and. all_close (weight, weight_ok, rtol=0.0_PREC, atol=1.0e-12_PREC)
 
-    call tc%assert_true (all_ok .and. status == NF_STATUS_OK, &
-        "0d API: Some non-interior points, ext=NF_INTERP_EVAL_BOUNDARY")
+    if (.not. (all_ok .and. status == NF_STATUS_OK)) &
+        error stop "0d API: Some non-interior points, ext=NF_INTERP_EVAL_BOUNDARY"
 
     ! 1d interface
     status = NF_STATUS_UNDEFINED
@@ -395,8 +369,8 @@ subroutine test_interp_find (tests)
     all_ok = all(ilbound == ilbound_ok)
     all_ok = all_ok .and. all_close (weight, weight_ok, rtol=0.0_PREC, atol=1.0e-12_PREC)
 
-    call tc%assert_true (all_ok .and. status == NF_STATUS_OK, &
-        "1d API: Some non-interior points, ext=NF_INTERP_EVAL_BOUNDARY ")
+    if (.not. (all_ok .and. status == NF_STATUS_OK)) &
+        error stop "1d API: Some non-interior points, ext=NF_INTERP_EVAL_BOUNDARY "
 
     ! === Error on non-interior point ===
 
@@ -415,7 +389,8 @@ subroutine test_interp_find (tests)
         end if
     end do
 
-    call tc%assert_true (all_ok, "0d API: Some non-interior points, ext=NF_INTERP_EVAL_ERROR")
+    if (.not. (all_ok)) &
+        error stop "0d API: Some non-interior points, ext=NF_INTERP_EVAL_ERROR"
 
     ! 1d interface
     status = NF_STATUS_UNDEFINED
@@ -423,8 +398,8 @@ subroutine test_interp_find (tests)
     call interp_find (needles, haystack, ilbound, weight, &
         ext=NF_INTERP_EVAL_ERROR, status=status)
 
-    call tc%assert_true (status == NF_STATUS_BOUNDS_ERROR, &
-        "1d API: Some non-interior points, ext=NF_INTERP_EVAL_ERROR")
+    if (.not. (status == NF_STATUS_BOUNDS_ERROR)) &
+        error stop "1d API: Some non-interior points, ext=NF_INTERP_EVAL_ERROR"
 
     ! === Replace non-interior points with const ===
     ! We assume that in this case the FIND routine returns specific (invalid)
@@ -451,8 +426,8 @@ subroutine test_interp_find (tests)
     end do
 
     all_ok = all_ok .and. all(ilbound == ilbound_ok)
-    call tc%assert_true (all_ok, &
-        "0d API: Some non-interior points, ext=NF_INTERP_EVAL_CONST")
+    if (.not. (all_ok)) &
+        error stop "0d API: Some non-interior points, ext=NF_INTERP_EVAL_CONST"
 
     status = NF_STATUS_UNDEFINED
     call interp_find (needles, haystack, ilbound, weight, &
@@ -460,27 +435,20 @@ subroutine test_interp_find (tests)
 
     all_ok = all(ilbound == ilbound_ok) .and. (status == NF_STATUS_OK)
 
-    call tc%assert_true (all_ok, &
-        "1d API: Some non-interior points, ext=NF_INTERP_EVAL_CONST")
+    if (.not. (all_ok)) &
+        error stop "1d API: Some non-interior points, ext=NF_INTERP_EVAL_CONST"
 
 end subroutine
 
-
-
-subroutine test_interp_find_decr (tests)
+subroutine test_interp_find_decr ()
     !*  Unit tests for INTERP_FIND_DECR which performs searches on
     !   (weakly) decreasing input data.
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     type (status_t) :: status
     real (PREC), dimension(:), allocatable :: x, weight, knots, rwork, weight_ok
     integer, dimension(:), allocatable :: ilbound, ilbound_ok
     integer :: nx, nk
     logical :: values_ok
-
-    tc => tests%add_test ('Unit tests for INTERP_FIND_DECR')
 
     call set_seed (12345)
 
@@ -496,7 +464,7 @@ subroutine test_interp_find_decr (tests)
     status = NF_STATUS_UNDEFINED
 
     call interp_find_decr (x, knots, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Invalid HAYSTACK argument')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid HAYSTACK argument"
 
     deallocate (x, weight, ilbound, knots)
 
@@ -508,7 +476,8 @@ subroutine test_interp_find_decr (tests)
 
     status = NF_STATUS_UNDEFINED
     call interp_find_decr (x, knots, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Non-conformable NEEDLE, ILBOUND')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable NEEDLE, ILBOUND"
 
     deallocate (x, ilbound, weight, knots)
 
@@ -520,7 +489,8 @@ subroutine test_interp_find_decr (tests)
 
     status = NF_STATUS_UNDEFINED
     call interp_find_decr (x, knots, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Non-conformable ILBOUND, WEIGHT')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable ILBOUND, WEIGHT"
 
     deallocate (x, ilbound, weight, knots)
 
@@ -534,21 +504,21 @@ subroutine test_interp_find_decr (tests)
     x(5) = 50.0
     status = NF_STATUS_UNDEFINED
     call interp_find_decr (x, knots, ilbound, weight, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Increasing value in X, #1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Increasing value in X, #1"
 
     ! Test with violation at the beginning
     call linspace (x, 10.0_PREC, 1.0_PREC)
     x(1) = 1.0
     status = NF_STATUS_UNDEFINED
     call interp_find_decr (x, knots, ilbound, weight, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Increasing value in X, #2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Increasing value in X, #2"
 
     ! Test with violation at end
     call linspace (x, 10.0_PREC, 1.0_PREC)
     x(nx) = 10.0
     status = NF_STATUS_UNDEFINED
     call interp_find_decr (x, knots, ilbound, weight, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Increasing value in X, #3')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Increasing value in X, #3"
 
     deallocate (x, ilbound, weight, knots)
 
@@ -572,8 +542,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, rtol=0.0_PREC, atol=1.0e-14_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Evaluating with all-interior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Evaluating with all-interior points"
 
     ! === Evaluate with points outside of KNOTS ===
     call linspace (x, 11.0_PREC, -1.0_PREC)
@@ -585,8 +555,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Evaluating with interior/exterior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Evaluating with interior/exterior points"
 
     deallocate (x, ilbound, ilbound_ok, weight, weight_ok, knots, rwork)
 
@@ -614,8 +584,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and.  &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Long HAYSTACK input, all interior X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Long HAYSTACK input, all interior X"
 
     ! 2. Exterior/interior X
     call linspace (x, 200.0_PREC, -10.0_PREC)
@@ -627,8 +597,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and.  &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Long HAYSTACK input, all exterior X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Long HAYSTACK input, all exterior X"
 
     deallocate (x, knots, rwork, ilbound, ilbound_ok, weight, weight_ok)
 
@@ -655,8 +625,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X at interior of HAYSTACK')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X at interior of HAYSTACK"
 
     ! Left bound of HAYSTACK
     x(1) = knots(1)
@@ -669,8 +639,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, left of HAYSTACK(1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, left of HAYSTACK(1)"
 
     ! Right of HAYSTACK
     x(1) = knots(nk) + 1.0
@@ -683,8 +653,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, right of HAYSTACK(-1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, right of HAYSTACK(-1)"
 
     deallocate (x, ilbound, ilbound_ok, weight, weight_ok, knots)
 
@@ -711,8 +681,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X at interior of HAYSTACK')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X at interior of HAYSTACK"
 
     ! Left bound of HAYSTACK
     x(1) = knots(1)
@@ -725,8 +695,8 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, left of HAYSTACK(1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, left of HAYSTACK(1)"
 
     ! Right of HAYSTACK
     x(1) = knots(nk) + 1.0
@@ -739,29 +709,22 @@ subroutine test_interp_find_decr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, right of HAYSTACK(-1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, right of HAYSTACK(-1)"
 
     deallocate (x, ilbound, ilbound_ok, weight, weight_ok, knots)
 
 end subroutine
 
-
-
-subroutine test_interp_find_incr (tests)
+subroutine test_interp_find_incr ()
     !*  Unit tests for INTERP_FIND_INCR which performs searches on
     !   (weakly) increasing input data.
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
 
     type (status_t) :: status
     real (PREC), dimension(:), allocatable :: x, weight, knots, rwork, weight_ok
     integer, dimension(:), allocatable :: ilbound, ilbound_ok
     integer :: nx, nk
     logical :: values_ok
-
-    tc => tests%add_test ('Unit tests for INTERP_FIND_INCR')
 
     call set_seed (12345)
 
@@ -777,7 +740,7 @@ subroutine test_interp_find_incr (tests)
     status = NF_STATUS_UNDEFINED
 
     call interp_find_incr (x, knots, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Invalid HAYSTACK argument')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid HAYSTACK argument"
 
     deallocate (x, weight, ilbound, knots)
 
@@ -789,7 +752,8 @@ subroutine test_interp_find_incr (tests)
 
     status = NF_STATUS_UNDEFINED
     call interp_find_incr (x, knots, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Non-conformable NEEDLE, ILBOUND')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable NEEDLE, ILBOUND"
 
     deallocate (x, ilbound, weight, knots)
 
@@ -801,7 +765,8 @@ subroutine test_interp_find_incr (tests)
 
     status = NF_STATUS_UNDEFINED
     call interp_find_incr (x, knots, ilbound, weight, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Non-conformable ILBOUND, WEIGHT')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Non-conformable ILBOUND, WEIGHT"
 
     deallocate (x, ilbound, weight, knots)
 
@@ -815,21 +780,21 @@ subroutine test_interp_find_incr (tests)
     x(5) = 2.0
     status = NF_STATUS_UNDEFINED
     call interp_find_incr (x, knots, ilbound, weight, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Increasing value in X, #1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Increasing value in X, #1"
 
     ! Test with violation at the beginning
     call linspace (x, 1.0_PREC, 10.0_PREC)
     x(1) = x(2) + 1.0
     status = NF_STATUS_UNDEFINED
     call interp_find_incr (x, knots, ilbound, weight, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Increasing value in X, #2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Increasing value in X, #2"
 
     ! Test with violation at end
     call linspace (x, 1.0_PREC, 10.0_PREC)
     x(nx) = x(nx-1) - 0.1
     status = NF_STATUS_UNDEFINED
     call interp_find_incr (x, knots, ilbound, weight, status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'Increasing value in X, #3')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Increasing value in X, #3"
 
     deallocate (x, ilbound, weight, knots)
 
@@ -853,8 +818,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, rtol=0.0_PREC, atol=1.0e-14_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Evaluating with all-interior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Evaluating with all-interior points"
 
     ! === Evaluate with points outside of KNOTS ===
     call linspace (x, -1.0_PREC, 11.0_PREC)
@@ -866,8 +831,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Evaluating with interior/exterior points')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Evaluating with interior/exterior points"
 
     deallocate (x, ilbound, ilbound_ok, weight, weight_ok, knots, rwork)
 
@@ -895,8 +860,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and.  &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Long HAYSTACK input, all interior X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Long HAYSTACK input, all interior X"
 
     ! 2. Exterior/interior X
     call linspace (x, -10.0_PREC, 200.0_PREC)
@@ -908,8 +873,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and.  &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Long HAYSTACK input, all exterior X')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Long HAYSTACK input, all exterior X"
 
     deallocate (x, knots, rwork, ilbound, ilbound_ok, weight, weight_ok)
 
@@ -936,8 +901,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X at interior of HAYSTACK')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X at interior of HAYSTACK"
 
     ! Left bound of HAYSTACK
     x(1) = knots(1)
@@ -950,8 +915,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, left of HAYSTACK(1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, left of HAYSTACK(1)"
 
     ! Right of HAYSTACK
     x(1) = knots(nk) - 1.0
@@ -964,8 +929,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, right of HAYSTACK(-1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, right of HAYSTACK(-1)"
 
     deallocate (x, ilbound, ilbound_ok, weight, weight_ok, knots)
 
@@ -992,8 +957,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X at interior of HAYSTACK')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X at interior of HAYSTACK"
 
     ! Left bound of HAYSTACK
     x(1) = knots(1)
@@ -1006,8 +971,8 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, left of HAYSTACK(1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, left of HAYSTACK(1)"
 
     ! Right of HAYSTACK
     x(1) = knots(nk) - 1.0
@@ -1020,14 +985,11 @@ subroutine test_interp_find_incr (tests)
     call interp_find (x, knots, ilbound_ok, weight_ok)
     values_ok = all(ilbound == ilbound_ok) .and. &
         all_close (weight, weight_ok, atol=1.0e-14_PREC, rtol=0.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'Constant X, right of HAYSTACK(-1)')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant X, right of HAYSTACK(-1)"
 
     deallocate (x, ilbound, ilbound_ok, weight, weight_ok, knots)
 
 end subroutine
-
-
-
 
 end program

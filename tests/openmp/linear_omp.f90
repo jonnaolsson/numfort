@@ -1,7 +1,6 @@
 program test_interp_linear
 
     use, intrinsic :: iso_fortran_env
-    use fcore_testing
     use numfort_arrays
     use numfort_interpolate
     implicit none
@@ -14,29 +13,19 @@ program test_interp_linear
 contains
 
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort_interpolate unit tests using OpenMP")
-
-    call test_extrap (tests)
-
-    ! print test statistics
-    call tests%print ()
+    call test_extrap ()
 
 end subroutine
 
 !>  Tests for linear extrapolation when x-coordinate of interpolated value
 !   is outside of data points boundaries.
-subroutine test_extrap (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_extrap ()
 
     integer, parameter :: n = int(1e5)
     real (PREC), dimension(10) :: xp, fp
     real (PREC), dimension(:), allocatable :: fx_hat, x, fx
     integer :: i
-
-    tc => tests%add_test ("Linear extrapolation")
 
     ! function f(x) = 2x + 1 on [10, 20]
     call linspace (xp, 1.0d1, 2.0d1)
@@ -59,8 +48,8 @@ subroutine test_extrap (tests)
     ! compute true values f(x)
     call func1 (x, fx)
 
-    call tc%assert_true (all(abs(fx-fx_hat) < 1d-12), &
-        "Extrapolation, scalar argument")
+    if (.not. (all (abs (fx - fx_hat) < 1d-12))) &
+        error stop "Extrapolation, scalar argument"
 
 end subroutine
 

@@ -5,9 +5,6 @@ program test_nf_integrate_basic
     use numfort_arrays
     use numfort_integrate
 
-    use fcore_testing, only: test_suite, test_case
-    use fcore_common, only: str, operator(//)
-
     use tests_nf_integrate_funcs
 
     implicit none
@@ -23,32 +20,20 @@ program test_nf_integrate_basic
 
    integer, parameter :: NPOINTS(*) = [4, 7, 10, 13, 100]
 
-
-    call test_all()
+    call test_all ()
 
 contains
 
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort_interpolate_quadpack unit tests")
-
-    call test_quad (tests)
-
-    ! print test statistics
-    call tests%print ()
+    call test_quad ()
 
 end subroutine
 
-
-
-subroutine test_quad (tests)
+subroutine test_quad ()
     !*  Unit tests for QUADPACK wrapper routines
 
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
     type (status_t) :: status
-    type (str) :: msg
 
     real (PREC), parameter :: tol = 1d-7
         !   Error tolerance of Fortran vs. Scipy solution
@@ -70,13 +55,11 @@ subroutine test_quad (tests)
     real (PREC) :: a, b
     integer :: i, k, nmax
 
-    tc => tests%add_test ("QUAD routine")
-
     ! Test with degenerate interval
     status = NF_STATUS_UNDEFINED
     call quad (fcn1, 0.0_PREC, 0.0_PREC, res, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. (res == 0.0), &
-        "Integrand: integrate over singleton set")
+    if (.not. (status == NF_STATUS_OK .and. (res == 0.0))) &
+        error stop "Integrand: integrate over singleton set"
 
     ! Iterate over test functions; for each test function, test with
     ! all number of points.
@@ -105,13 +88,11 @@ subroutine test_quad (tests)
             call quad (ptr_fcn, a, b, res, epsabs=epsabs, epsrel=epsrel, &
                     nmax=nmax, status=status)
             diff = abs(res - INT_SCIPY(k, i))
-            msg = "Func. " // str(i, "i0") // "; res=" // str(res, "f0.8") &
-                // "; diff=" // str(diff, "es9.2e3")
-            call tc%assert_true (diff < tol, msg%to_char()) 
+            if (.not. (diff < tol)) &
+                error stop "QUAD disagrees with the reference integral"
 
         end do
     end do
-
 
 end subroutine
 

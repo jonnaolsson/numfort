@@ -4,7 +4,6 @@ program test_numfort_stats_core
 
     use iso_fortran_env
 
-    use fcore_testing, only: test_suite, test_case
     use numfort_arrays
     use numfort_stats
     use numfort_common
@@ -14,165 +13,148 @@ program test_numfort_stats_core
     implicit none
 
     integer, parameter :: PREC = real64
-    real (real64), parameter :: tol = 1d-12
+    real (real64), parameter :: tol=1d-12
 
     call test_all ()
 
 contains
 
 subroutine test_all ()
-    type (test_suite) :: tests
 
-    call tests%set_label ("numfort_stats_core unit tests")
+    call test_mean_std_input_checks ()
+    call test_mean_std_degenerate ()
+    call test_mean_std_1d ()
+    call test_mean_std_2d ()
 
-    call test_mean_std_input_checks (tests)
-    call test_mean_std_degenerate (tests)
-    call test_mean_std_1d (tests)
-    call test_mean_std_2d (tests)
+    call test_standardize_1d ()
+    call test_standardize_2d ()
 
-    call test_standardize_1d (tests)
-    call test_standardize_2d (tests)
+    call test_cov ()
 
-    call test_cov (tests)
-
-    call test_quantile (tests)
-
-    ! print test statistics
-    call tests%print ()
+    call test_quantile ()
 
 end subroutine
 
-
-subroutine test_mean_std_degenerate (tests)
-
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_mean_std_degenerate ()
 
     real (PREC) :: x(0), x10(1,0), x01(0,1), x1(1), x21(2,1), x12(1,2)
     real (PREC) :: m, m1(2)
     real (PREC) :: s, s1(2)
     type (status_t) :: status
 
-    tc => tests%add_test ("Mean/SD degenerate inputs")
-
     ! --- zero-obs. inputs ---
 
     status = NF_STATUS_UNDEFINED
     call mean (x, m, status=status)
-    call tc%assert_true (NF_STATUS_INVALID_ARG .in. status, &
-        "Degenerate 1d input array")
+    if (.not. (NF_STATUS_INVALID_ARG .in. status)) &
+        error stop "Degenerate 1d input array"
 
     status = NF_STATUS_UNDEFINED
     call mean (x10, m1(1:1), dim=2, status=status)
-    call tc%assert_true ((NF_STATUS_INVALID_ARG .in. status), &
-        "2d input array, Nvars > 0, Nobs = 0 (dim=2)")
+    if (.not. ((NF_STATUS_INVALID_ARG .in. status))) &
+        error stop "2d input array, Nvars > 0, Nobs = 0 (dim=2)"
 
     status = NF_STATUS_UNDEFINED
     call mean (x01, m1(1:1), dim=1, status=status)
-    call tc%assert_true ((NF_STATUS_INVALID_ARG .in. status), &
-        "2d input array, Nvars > 0, Nobs=0 (dim=1)")
+    if (.not. ((NF_STATUS_INVALID_ARG .in. status))) &
+        error stop "2d input array, Nvars > 0, Nobs=0 (dim=1)"
 
     status = NF_STATUS_UNDEFINED
     call std (x, s, status=status)
-    call tc%assert_true (NF_STATUS_INVALID_ARG .in. status, &
-        "STD: degenerate 1d input array")
+    if (.not. (NF_STATUS_INVALID_ARG .in. status)) &
+        error stop "STD: degenerate 1d input array"
 
     status = NF_STATUS_UNDEFINED
     call std (x10, s1(1:1), dim=2, status=status)
-    call tc%assert_true ((NF_STATUS_INVALID_ARG .in. status), &
-        "2d input array, Nvars > 0, Nobs = 0 (dim=2)")
+    if (.not. ((NF_STATUS_INVALID_ARG .in. status))) &
+        error stop "2d input array, Nvars > 0, Nobs = 0 (dim=2)"
 
     status = NF_STATUS_UNDEFINED
     call std (x01, s1(1:1), dim=1, status=status)
-    call tc%assert_true ((NF_STATUS_INVALID_ARG .in. status), &
-        "2d input array, Nvars > 0, Nobs=0 (dim=1)")
+    if (.not. ((NF_STATUS_INVALID_ARG .in. status))) &
+        error stop "2d input array, Nvars > 0, Nobs=0 (dim=1)"
 
     ! Note: passing zero variables but non-zero observations should return
     ! NF_STATUS_OK, since the problem is well-defined for all variables
     ! in this empty set!
     status = NF_STATUS_UNDEFINED
     call std (x10, s1(1:0), dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "2d input array, Nvars = 0, Nobs > 0 (dim=1)")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "2d input array, Nvars = 0, Nobs > 0 (dim=1)"
 
     ! Note: passing zero variables but non-zero observations should return
     ! NF_STATUS_OK, since the problem is well-defined for all variables
     ! in this empty set!
     status = NF_STATUS_UNDEFINED
     call std (x01, s1(1:0), dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "2d input array, Nvars = 0, Nobs > 0 (dim=2)")
-
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "2d input array, Nvars = 0, Nobs > 0 (dim=2)"
 
     ! --- zero-variable inputs ---
 
     status = NF_STATUS_UNDEFINED
     call mean (x10, m1(1:0), dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "2d input array, Nvars = 0, Nobs > 0 (dim=1)")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "2d input array, Nvars = 0, Nobs > 0 (dim=1)"
 
     status = NF_STATUS_UNDEFINED
     call mean (x01, m1(1:0), dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        "2d input array, Nvars = 0, Nobs > 0 (dim=2)")
+    if (.not. (status == NF_STATUS_OK)) &
+        error stop "2d input array, Nvars = 0, Nobs > 0 (dim=2)"
 
     ! --- 1d input of length 1 ---
 
     x1 = 1.234
     status = NF_STATUS_UNDEFINED
     call mean (x1, m, status=status)
-    call tc%assert_true (m == x1(1) .and. (NF_STATUS_OK .in. status), &
-        "mean: 1d input, size(x) = 1")
+    if (.not. (m == x1(1) .and. (NF_STATUS_OK .in. status))) &
+        error stop "mean: 1d input, size(x) = 1"
 
     m = -1
     status = NF_STATUS_UNDEFINED
     call std (x1, s, m, status=status)
-    call tc%assert_true (m == x1(1) .and. s == 0.0_PREC .and. (NF_STATUS_OK .in. status), &
-        "std: 1d input, size(x) = 1")
+    if (.not. (m == x1(1) .and. s == 0.0_PREC .and. (NF_STATUS_OK .in. status))) &
+        error stop "std: 1d input, size(x) = 1"
 
     ! --- 2d input with one dim. of lenth 1 ---
 
     x21(:, 1) = [7.234, -0.223423]
     status = NF_STATUS_UNDEFINED
     call mean (x21, m1, dim=2, status=status)
-    call tc%assert_true (all(x21(:, 1) == m1) .and. (NF_STATUS_OK .in. status), &
-        "mean: 2d input of shape [2, 1]")
+    if (.not. (all (x21(:, 1) == m1) .and. (NF_STATUS_OK .in. status))) &
+        error stop "mean: 2d input of shape [2, 1]"
 
     x12(1, :) = [789.213, -2.123]
     status = NF_STATUS_UNDEFINED
     call mean (x12, m1, dim=1, status=status)
-    call tc%assert_true (all(x12(1, :) == m1) .and. (NF_STATUS_OK .in. status), &
-        "mean: 2d input of shape [1, 2]")
+    if (.not. (all (x12(1, :) == m1) .and. (NF_STATUS_OK .in. status))) &
+        error stop "mean: 2d input of shape [1, 2]"
 
     x21(:, 1) = [1.2345, -0.3214]
     s1 = -1.0
     status = NF_STATUS_UNDEFINED
-    call std(x21, s1, m1, dim=2, status=status)
-    call tc%assert_true (all(x21(:, 1) == m1) .and. all(s1 == 0.0_PREC) .and. (NF_STATUS_OK .in. status), &
-        "std: 2d input of shape [2, 1]")
+    call std (x21, s1, m1, dim=2, status=status)
+    if (.not. (all (x21(:, 1) == m1) .and. all (s1 == 0.0_PREC) .and. (NF_STATUS_OK &
+        .in. status))) &
+        error stop "std: 2d input of shape [2, 1]"
 
     s1 = -1.0
     x12(1, :) = [0.213, -234.123]
     status = NF_STATUS_UNDEFINED
-    call std(x12, s1, m1, dim=1, status=status)
-    call tc%assert_true (all(x12(1, :) == m1) .and. all(s1 == 0.0_PREC) .and. (NF_STATUS_OK .in. status), &
-        "std: 2d input of shape [1, 2]")
+    call std (x12, s1, m1, dim=1, status=status)
+    if (.not. (all (x12(1, :) == m1) .and. all (s1 == 0.0_PREC) .and. (NF_STATUS_OK &
+        .in. status))) &
+        error stop "std: 2d input of shape [1, 2]"
 
 end subroutine
 
+subroutine test_mean_std_input_checks ()
 
-
-subroutine test_mean_std_input_checks (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
     type (status_t) :: status
     real (PREC), dimension(1) :: x
     real (PREC), dimension(:,:), allocatable :: x2d
     real (PREC), dimension(10) :: mean_x, std_x
     integer :: m, n
-
-    tc => tests%add_test ('Input checks for MEAN, STD')
 
     ! --- 2d API: Invalid DIM ---
 
@@ -182,11 +164,13 @@ subroutine test_mean_std_input_checks (tests)
 
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:m), dim=3, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid DIM > 2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid DIM > 2"
 
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:m), dim=0, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid DIM < 1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid DIM < 1"
 
     deallocate (x2d)
 
@@ -199,29 +183,35 @@ subroutine test_mean_std_input_checks (tests)
 
     status = NF_STATUS_UNDEFINED
     call mean (x2d, m=mean_x(1:n-1), dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'MEAN, 2d API: Invalid size(MEAN_X), dim=1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "MEAN, 2d API: Invalid size(MEAN_X), dim=1"
 
     status = NF_STATUS_UNDEFINED
     call mean (x2d, m=mean_x(1:m+1), dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'MEAN, 2d API: Invalid size(MEAN_X), dim=2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "MEAN, 2d API: Invalid size(MEAN_X), dim=2"
 
     ! Std
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:n+1), dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid size(STD_X), dim=1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid size(STD_X), dim=1"
 
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:m-1), dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid size(STD_X), dim=2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid size(STD_X), dim=2"
 
     ! Std: Invalid MEAN_X
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:n), m=mean_x(1:n+1), dim=1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid size(MEAN_X), dim=1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid size(MEAN_X), dim=1"
 
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:m), m=mean_x(1:m+1), dim=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid size(MEAN_X), dim=2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid size(MEAN_X), dim=2"
 
     deallocate (x2d)
 
@@ -229,12 +219,13 @@ subroutine test_mean_std_input_checks (tests)
 
     status = NF_STATUS_UNDEFINED
     call std (x, s=std_x(1), dof=-1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 1d API: Invalid DOF < 0')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 1d API: Invalid DOF < 0"
 
     status = NF_STATUS_UNDEFINED
     call std (x, s=std_x(1), dof=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 1d API: Invalid DOF > 1')
-
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 1d API: Invalid DOF > 1"
 
     ! --- 2d API: Invalid DOF ---
 
@@ -244,22 +235,19 @@ subroutine test_mean_std_input_checks (tests)
 
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:m), dim=1, dof=-1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid DOF < 0')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid DOF < 0"
 
     status = NF_STATUS_UNDEFINED
     call std (x2d, s=std_x(1:m), dim=1, dof=3, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, 'STD, 2d API: Invalid DOF > 1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "STD, 2d API: Invalid DOF > 1"
 
     deallocate (x2d)
 
 end subroutine
 
-
-
-subroutine test_mean_std_1d (tests)
-
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_mean_std_1d ()
 
     integer, parameter :: N = 101
     real (PREC) :: x(N)
@@ -267,35 +255,27 @@ subroutine test_mean_std_1d (tests)
     integer :: i
     type (status_t) :: status
 
-    tc => tests%add_test ("1d input arrays")
-
     x = [real (PREC) :: (i, i = 1, N)]
     call mean (x, m, status=status)
-    call tc%assert_true (abs(m - (N+1)/2) < 1d-15 .and. (NF_STATUS_OK .in. status), &
-        "Mean of 1d sequence")
+    if (.not. (abs (m - (N + 1) / 2) < 1d-15 .and. (NF_STATUS_OK .in. status))) &
+        error stop "Mean of 1d sequence"
 
     ! compute std. deviation manually (numerical instability should be
     ! negligible in this case)
     s2 = sqrt(sum((x -m) ** 2) / (N-1))
     call std (x, s, m2, status=status)
-    call tc%assert_true (m == m2 .and. abs(s-s2) < 1d-15 .and. (NF_STATUS_OK .in. status), &
-        "Std of 1d sequence")
+    if (.not. (m == m2 .and. abs (s - s2) < 1d-15 .and. (NF_STATUS_OK .in. status))) &
+        error stop "Std of 1d sequence"
 
 end subroutine
 
-
-
-subroutine test_mean_std_2d (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_mean_std_2d ()
 
     integer, parameter :: N = 100
     real (PREC), dimension(N,N) :: x
     real (PREC), dimension(N) :: m, m2, s, s2
     integer :: i
     type (status_t) :: status
-
-    tc => tests%add_test ("2d input arrays")
 
     ! draw some random sample
     call random_number (x)
@@ -308,12 +288,13 @@ subroutine test_mean_std_2d (tests)
 
     ! Compute using library routines
     call mean (x, m, dim=1, status=status)
-    call tc%assert_true (all(abs(m-m2) < tol) .and. (NF_STATUS_OK .in. status), &
-        "Mean of 2d array along dim=1")
+    if (.not. (all (abs (m - m2) < tol) .and. (NF_STATUS_OK .in. status))) &
+        error stop "Mean of 2d array along dim=1"
 
     call std (x, s, m, dim=1, status=status)
-    call tc%assert_true (all(abs(m-m2) < tol) .and. all(abs(s-s2) < tol) .and. (NF_STATUS_OK .in. status), &
-        "Std of 2d array along dim=1")
+    if (.not. (all (abs (m - m2) < tol) .and. all (abs (s - s2) < tol) .and. &
+        (NF_STATUS_OK .in. status))) &
+        error stop "Std of 2d array along dim=1"
 
     ! test reduction over dim=2
     do i = 1, N
@@ -323,27 +304,22 @@ subroutine test_mean_std_2d (tests)
 
     ! Compute using library routines
     call mean (x, m, dim=2, status=status)
-    call tc%assert_true (all(abs(m-m2) < tol) .and. (NF_STATUS_OK .in. status), &
-        "Mean of 2d array along dim=2")
+    if (.not. (all (abs (m - m2) < tol) .and. (NF_STATUS_OK .in. status))) &
+        error stop "Mean of 2d array along dim=2"
 
     call std (x, s, m, dim=2, status=status)
-    call tc%assert_true (all(abs(m-m2) < tol) .and. all(abs(s-s2) < tol) .and. (NF_STATUS_OK .in. status), &
-        "Std of 2d array along dim=2")
+    if (.not. (all (abs (m - m2) < tol) .and. all (abs (s - s2) < tol) .and. &
+        (NF_STATUS_OK .in. status))) &
+        error stop "Std of 2d array along dim=2"
 end subroutine
 
+subroutine test_standardize_1d ()
 
-
-subroutine test_standardize_1d (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
     real (PREC), dimension(10) :: x, x_ok, x_orig
     real (PREC), dimension(0) :: x0
     real (PREC) :: std_x, mean_x, shift_x, scale_x, mean_ok, std_ok
     logical :: values_ok
     type (status_t) :: status
-
-    tc => tests%add_test ('STANDARDIZE 1d API')
 
     call set_seed (12345)
 
@@ -364,14 +340,14 @@ subroutine test_standardize_1d (tests)
         std_x=std_x, shift_x=shift_x, scale_x=scale_x, status=status)
     values_ok = all(x == x_orig) .and. mean_x==mean_ok .and. std_x==std_ok &
         .and. shift_x==0.0_PREC .and. scale_x==1.0_PREC
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, CENTER=.FALSE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, CENTER=.FALSE., SCALE=.FALSE."
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.false., scale=.false., status=status)
     values_ok = all(x == x_orig)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, CENTER=.FALSE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, CENTER=.FALSE., SCALE=.FALSE."
 
     ! --- Center ---
 
@@ -382,16 +358,16 @@ subroutine test_standardize_1d (tests)
         std_x=std_x, shift_x=shift_x, scale_x=scale_x, status=status)
     values_ok = all(x == x_ok) .and. mean_x==mean_ok .and. std_x==std_ok &
         .and. shift_x==mean_x .and. scale_x==1.0_PREC
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, CENTER=.TRUE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, CENTER=.TRUE., SCALE=.FALSE."
 
     status = NF_STATUS_UNDEFINED
     x = x_orig
     x_ok = x - mean_ok
     call standardize (x, center=.true., scale=.false., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, CENTER=.TRUE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, CENTER=.TRUE., SCALE=.FALSE."
 
     ! --- Scale ---
 
@@ -402,16 +378,16 @@ subroutine test_standardize_1d (tests)
         std_x=std_x, shift_x=shift_x, scale_x=scale_x, status=status)
     values_ok = all(x == x_ok) .and. mean_x==mean_ok .and. std_x==std_ok &
         .and. shift_x==0.0_PREC .and. scale_x==std_ok
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, CENTER=.FALSE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, CENTER=.FALSE., SCALE=.TRUE."
 
     x = x_orig
     x_ok = x / std_ok
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.false., scale=.true., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, CENTER=.FALSE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, CENTER=.FALSE., SCALE=.TRUE."
 
     ! --- Center and scale ---
 
@@ -422,25 +398,21 @@ subroutine test_standardize_1d (tests)
         std_x=std_x, shift_x=shift_x, scale_x=scale_x, status=status)
     values_ok = all(x == x_ok) .and. mean_x==mean_ok .and. std_x==std_ok &
         .and. shift_x==mean_ok .and. scale_x==std_ok
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, CENTER=.TRUE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, CENTER=.TRUE., SCALE=.TRUE."
 
     x = x_orig
     x_ok = (x - mean_ok) / std_ok
     status = NF_STATUS_UNDEFINED
     call standardize (x, center=.true., scale=.true., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, CENTER=.TRUE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, CENTER=.TRUE., SCALE=.TRUE."
 
 end subroutine
 
+subroutine test_standardize_2d ()
 
-
-subroutine test_standardize_2d (tests)
-    class (test_suite) :: tests
-
-    class (test_case), pointer :: tc
     integer, parameter :: m = 7, n = 4
     real (PREC), dimension(m,n) :: x, x_ok, x_orig
     real (PREC), dimension(max(m,n)) :: std_x, mean_x, shift_x, scale_x, mean_ok, std_ok
@@ -448,8 +420,6 @@ subroutine test_standardize_2d (tests)
     logical :: values_ok
     integer :: k, dim, i
     type (status_t) :: status
-
-    tc => tests%add_test ('STANDARDIZE 2d API')
 
     call set_seed (12345)
 
@@ -468,15 +438,15 @@ subroutine test_standardize_2d (tests)
     status = NF_STATUS_UNDEFINED
     call standardize (x(1:Nobs,1:Nvars), dim=dim, mean_x=mean_x(1:Nvars), &
         std_x=std_x(1:Nvars), status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Nobs = 0 , Nvar > 0, dim = 1')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Nobs = 0 , Nvar > 0, dim = 1"
 
     dim = 2
     status = NF_STATUS_UNDEFINED
     call standardize (x(1:Nvars,1:Nobs), dim=dim, mean_x=mean_x(1:Nvars), &
         std_x=std_x(1:Nvars), status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Nobs = 0 , Nvar > 0, dim = 2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Nobs = 0 , Nvar > 0, dim = 2"
 
     ! Zero vars, positive number of variables.
     ! This should return NF_STATUS_OK.
@@ -486,15 +456,13 @@ subroutine test_standardize_2d (tests)
     status = NF_STATUS_UNDEFINED
     call standardize (x(1:Nobs,1:Nvars), dim=dim, mean_x=mean_x(1:Nvars), &
         std_x=std_x(1:Nvars), status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'Nobs > 0 , Nvar = 0, dim = 1')
+    if (.not. (status == NF_STATUS_OK)) error stop "Nobs > 0 , Nvar = 0, dim = 1"
 
     dim = 2
     status = NF_STATUS_UNDEFINED
     call standardize (x(1:Nvars,1:Nobs), dim=dim, mean_x=mean_x(1:Nvars), &
         std_x=std_x(1:Nvars), status=status)
-    call tc%assert_true (status == NF_STATUS_OK, &
-        'Nobs > 0 , Nvar = 0, dim = 2')
+    if (.not. (status == NF_STATUS_OK)) error stop "Nobs > 0 , Nvar = 0, dim = 2"
 
     ! --- No operation ---
 
@@ -510,14 +478,14 @@ subroutine test_standardize_2d (tests)
         .and. all(std_x(1:k) == std_ok(1:k)) &
         .and. all(shift_x(1:k) == 0.0_PREC) &
         .and. all(scale_x(1:k) == 1.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE."
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.false., scale=.false., status=status)
     values_ok = all(x == x_orig)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE."
 
     ! DIM = 2
     k = m
@@ -533,16 +501,16 @@ subroutine test_standardize_2d (tests)
         .and. all(std_x(1:k) == std_ok(1:k)) &
         .and. all(shift_x(1:k) == 0.0_PREC) &
         .and. all(scale_x(1:k) == 1.0_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE."
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.false., scale=.false., status=status)
 
     values_ok = all(x == x_orig)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.FALSE."
 
     ! --- Center ---
 
@@ -567,16 +535,16 @@ subroutine test_standardize_2d (tests)
         .and. all(shift_x(1:k) == mean_ok(1:k)) &
         .and. all(scale_x(1:k) == 1.0_PREC)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=1, CENTER=.TRUE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=1, CENTER=.TRUE., SCALE=.FALSE."
 
     x = x_orig
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.true., scale=.false., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=1, CENTER=.TRUE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=1, CENTER=.TRUE., SCALE=.FALSE."
 
     ! DIM = 2
     x = x_orig
@@ -599,8 +567,8 @@ subroutine test_standardize_2d (tests)
         .and. all(shift_x(1:k) == mean_ok(1:k)) &
         .and. all(scale_x(1:k) == 1.0_PREC)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=2, CENTER=.TRUE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=2, CENTER=.TRUE., SCALE=.FALSE."
 
     x = x_orig
 
@@ -609,8 +577,8 @@ subroutine test_standardize_2d (tests)
 
     values_ok = all(x == x_ok)
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=2, CENTER=.TRUE., SCALE=.FALSE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=2, CENTER=.TRUE., SCALE=.FALSE."
 
     ! --- Scale ---
 
@@ -635,16 +603,16 @@ subroutine test_standardize_2d (tests)
         .and. all(shift_x(1:k) == 0.0_PREC) &
         .and. all(scale_x(1:k) == std_ok(1:k))
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
 
     x = x_orig
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.false., scale=.true., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
 
     ! DIM = 2
     x = x_orig
@@ -667,16 +635,16 @@ subroutine test_standardize_2d (tests)
         .and. all(shift_x(1:k) == 0.0_PREC) &
         .and. all(scale_x(1:k) == std_ok(1:k))
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
 
     x = x_orig
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.false., scale=.true., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
 
     ! --- Center and scale ---
 
@@ -701,16 +669,16 @@ subroutine test_standardize_2d (tests)
         .and. all(shift_x(1:k) == mean_ok(1:k)) &
         .and. all(scale_x(1:k) == std_ok(1:k))
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE."
 
     x = x_orig
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.true., scale=.true., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE."
 
     ! DIM = 2
     x = x_orig
@@ -733,32 +701,26 @@ subroutine test_standardize_2d (tests)
         .and. all(shift_x(1:k) == mean_ok(1:k)) &
         .and. all(scale_x(1:k) == std_ok(1:k))
 
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'All args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "All args present, DIM=1, CENTER=.TRUE., SCALE=.TRUE."
 
     x = x_orig
 
     status = NF_STATUS_UNDEFINED
     call standardize (x, dim=dim, center=.true., scale=.true., status=status)
     values_ok = all(x == x_ok)
-    call tc%assert_true (status == NF_STATUS_OK .and. values_ok, &
-        'No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE.')
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "No optional args present, DIM=1, CENTER=.FALSE., SCALE=.TRUE."
 
 end subroutine
 
-
-
-subroutine test_quantile (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_quantile ()
 
     real (PREC) :: wgt_lb
     real (PREC), dimension(:), allocatable :: bins, pmf, cdf
     real (PREC), dimension(:), allocatable :: rnk, q, q_ok
     integer :: n, nq, i
     type (status_t) :: status
-
-    tc => tests%add_test ("Unit tests for PERCENTILE routine")
 
     call set_seed (1234)
 
@@ -784,32 +746,28 @@ subroutine test_quantile (tests)
     ! Linear interpolation
     q_ok(:) = wgt_lb * bins(1:n) + (1.0-wgt_lb) * bins(2:n+1)
 
-    call quantile (bins, pmf, rnk, q, interp='linear', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 1: interp='linear'")
+    call quantile (bins, pmf, rnk, q, interp="linear", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 1: interp='linear'"
 
     ! Lower "interpolation"
     q_ok = bins(1:n)
-    call quantile (bins, pmf, rnk, q, interp='lower', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 1: interp='lower'")
+    call quantile (bins, pmf, rnk, q, interp="lower", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 1: interp='lower'"
 
     ! Higher "interpolation"
     q_ok = bins(2:n+1)
-    call quantile (bins, pmf, rnk, q, interp='higher', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 1: interp='higher'")
+    call quantile (bins, pmf, rnk, q, interp="higher", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 1: interp='higher'"
 
     ! Midpoint interpolation
     wgt_lb = 0.5d0
     q_ok = wgt_lb * bins(1:n) + (1.0-wgt_lb) * bins(2:n+1)
-    call quantile (bins, pmf, rnk, q, interp='midpoint', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 1: interp='midpoint'")
+    call quantile (bins, pmf, rnk, q, interp="midpoint", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 1: interp='midpoint'"
 
     ! ===== Test 2 =====
     ! Test with 0 elements in PMF at the extremes
@@ -823,10 +781,9 @@ subroutine test_quantile (tests)
     q_ok(4) = bins(4)
     q_ok(5) = bins(5)
 
-    call quantile (bins, pmf, rnk, q, interp='lower', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 2: interp='lower', PMF with zeros")
+    call quantile (bins, pmf, rnk, q, interp="lower", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 2: interp='lower', PMF with zeros"
 
     ! Higher interpolation where 0.0, 1.0 are in RNK
     q_ok(1) = bins(2)
@@ -835,28 +792,25 @@ subroutine test_quantile (tests)
     q_ok(4) = bins(5)
     q_ok(5) = bins(5)
 
-    call quantile (bins, pmf, rnk, q, interp='higher', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 2: interp='higher', PMF with zeros")
+    call quantile (bins, pmf, rnk, q, interp="higher", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 2: interp='higher', PMF with zeros"
 
     ! Linear interpolation
     q_ok(1) = bins(2)
     q_ok(2:4) = (bins(2:4) + bins(3:5)) / 2.0
     q_ok(5) = bins(5)
 
-    call quantile (bins, pmf, rnk, q, interp='linear', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 2: interp='linear', PMF with zeros")
+    call quantile (bins, pmf, rnk, q, interp="linear", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 2: interp='linear', PMF with zeros"
 
     ! Midpoint
     q_ok(1) = q_ok(2)
     q_ok(5) = q_ok(4)
-    call quantile (bins, pmf, rnk, q, interp='midpoint', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 2: interp='midpoint', PMF with zeros")
+    call quantile (bins, pmf, rnk, q, interp="midpoint", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 2: interp='midpoint', PMF with zeros"
 
     ! ===== Test 3 ======
     ! PMF with zeros in middle
@@ -871,10 +825,9 @@ subroutine test_quantile (tests)
     q_ok(2:3) = (bins(1:2) + bins(2:3)) / 2.0
     q_ok(4) = (bins(5) + bins(6)) / 2.0
     q_ok(5) = bins(6)
-    call quantile (bins, pmf, rnk, q, interp='linear', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 3: interp='linear', PMF with interior zeros")
+    call quantile (bins, pmf, rnk, q, interp="linear", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 3: interp='linear', PMF with interior zeros"
 
     ! lower "interpolation"
     q_ok(1:2) = bins(1)
@@ -882,48 +835,38 @@ subroutine test_quantile (tests)
     q_ok(4) = bins(5)
     q_ok(5) = bins(6)
 
-    call quantile (bins, pmf, rnk, q, interp='lower', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 3: interp='lower', PMF with interior zeros")
+    call quantile (bins, pmf, rnk, q, interp="lower", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 3: interp='lower', PMF with interior zeros"
 
     ! higher "interpolation"
     q_ok(1) = bins(1)
     q_ok(2) = bins(2)
     q_ok(3) = bins(3)
     q_ok(4:5) = bins(6)
-    call quantile (bins, pmf, rnk, q, interp='higher', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 3: interp='higher', PMF with interior zeros")
+    call quantile (bins, pmf, rnk, q, interp="higher", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 3: interp='higher', PMF with interior zeros"
 
     ! midpoint interpolation
     q_ok(1:2) = (bins(1) + bins(2)) / 2.0
     q_ok(3) = (bins(2) + bins(3)) / 2.0
     q_ok(4:5) = (bins(5) + bins(6)) / 2.0
-    call quantile (bins, pmf, rnk, q, interp='midpoint', status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. &
-        all_close (q, q_ok, atol=1.0d-10), &
-        "Test 3: interp='midpoint', PMF with interior zeros")
-
+    call quantile (bins, pmf, rnk, q, interp="midpoint", status=status)
+    if (.not. (status == NF_STATUS_OK .and. all_close (q, q_ok, atol=1.0d-10))) &
+        error stop "Test 3: interp='midpoint', PMF with interior zeros"
 
 end subroutine
 
-
-
-subroutine test_cov (tests)
+subroutine test_cov ()
     !*  Unit tests for COV and CORRCOEF routines
-    class (test_suite) :: tests
 
-    class (test_case), pointer :: tc
     real (PREC), dimension(:,:), allocatable :: x, vcv, vcv_desired
     real (PREC), dimension(:), allocatable :: eps, var_x
     integer :: nvars, nobs
     real (PREC) :: s, alpha, beta1, beta2, var_eps1, var_eps2, diff
     type (status_t) :: status
     logical :: vcv_ok
-
-    tc => tests%add_test ('Unit tests for COV and CORRCOEF routines')
 
     call set_seed (1234)
 
@@ -933,8 +876,8 @@ subroutine test_cov (tests)
     allocate (x(nobs, nvars), vcv(nvars, nvars+1))
     status = NF_STATUS_UNDEFINED
     call cov (x, vcv, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid input: non-conformable X and COV')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) &
+        error stop "Invalid input: non-conformable X and COV"
 
     deallocate (x, vcv)
 
@@ -945,24 +888,20 @@ subroutine test_cov (tests)
 
     status = NF_STATUS_UNDEFINED
     call cov (x, vcv, dim=0, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid input: DIM=0')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid input: DIM=0"
 
     status = NF_STATUS_UNDEFINED
     call cov (x, vcv, dim=3, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid input: DIM=3')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid input: DIM=3"
 
     ! Invalid DOF argument
     status = NF_STATUS_UNDEFINED
     call cov (x, vcv, dof=-1, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid input: DOF=0')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid input: DOF=0"
 
     status = NF_STATUS_UNDEFINED
     call cov (x, vcv, dof=2, status=status)
-    call tc%assert_true (status == NF_STATUS_INVALID_ARG, &
-        'Invalid input: DOF=2')
+    if (.not. (status == NF_STATUS_INVALID_ARG)) error stop "Invalid input: DOF=2"
 
     deallocate (x, vcv)
 
@@ -973,8 +912,8 @@ subroutine test_cov (tests)
     x(:,:) = 1.0
     status = NF_STATUS_UNDEFINED
     call cov (x, vcv, status=status)
-    call tc%assert_true (status == NF_STATUS_OK .and. all(vcv == 0.0), &
-        'COV called with a single observation')
+    if (.not. (status == NF_STATUS_OK .and. all (vcv == 0.0))) &
+        error stop "COV called with a single observation"
     deallocate (x, vcv)
 
     ! Single input variable, multiple observations
@@ -986,21 +925,21 @@ subroutine test_cov (tests)
     call cov (x, vcv, status=status)
     call std (x(:,1), s)
     vcv_ok = all(abs(vcv - s**2.0_PREC) < 1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. vcv_ok, &
-        'COV called with single variable, multiple observations')
+    if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
+        error stop "COV called with single variable, multiple observations"
     deallocate (x, vcv)
 
     ! Single input variable, swapped dimensions
     nobs = 2
     nvars = 1
     allocate (x(nvars,nobs), vcv(nvars,nvars))
-    call random_number(x)
+    call random_number (x)
     status = NF_STATUS_UNDEFINED
     call cov (x, vcv, dim=2, status=status)
     call std (x(1,:), s)
     vcv_ok = all(abs(vcv - s**2.0_PREC) < 1.0e-8_PREC)
-    call tc%assert_true (status == NF_STATUS_OK .and. vcv_ok, &
-        'COV called with single variable, DIM=2')
+    if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
+        error stop "COV called with single variable, DIM=2"
     deallocate (x, vcv)
 
     ! === Input data with many variables/obs ===
@@ -1016,8 +955,8 @@ subroutine test_cov (tests)
     call cov (x, vcv, status=status)
     ! Correct value of Cov(x1,x2) = Cov(x1,alpha+beta1*x1) = beta1*Var(x1)
     vcv_ok = abs(beta1*vcv(1,1) - vcv(1,2)) < 1.0e-8_PREC
-    call tc%assert_true (status == NF_STATUS_OK .and. vcv_ok, &
-        'COV called with X2 = alpha + beta1*X1')
+    if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
+        error stop "COV called with X2 = alpha + beta1*X1"
     deallocate (x, vcv)
 
     ! Add some noise such that
@@ -1035,8 +974,8 @@ subroutine test_cov (tests)
     ! Correct value of Cov(x1,x2) = Cov(x1,alpha+beta1*x1+eps) = beta1*Var(x1)
     ! as eps and x1 are uncorrelated
     vcv_ok = abs(beta1*vcv(1,1) - vcv(1,2)) < 1.0e-3_PREC
-    call tc%assert_true (status == NF_STATUS_OK .and. vcv_ok, &
-        'COV called with X2 = alpha + beta1*X1 + eps, DIM=2')
+    if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
+        error stop "COV called with X2 = alpha + beta1*X1 + eps, DIM=2"
     deallocate (x, vcv, eps)
 
     ! === CORRCOEF tests ===
@@ -1048,8 +987,8 @@ subroutine test_cov (tests)
     status = NF_STATUS_UNDEFINED
     call corrcoef (x, vcv, status=status)
     vcv_ok = all(vcv == 1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. vcv_ok, &
-        'CORRCOEF called with 1 variable / 1 obs.')
+    if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
+        error stop "CORRCOEF called with 1 variable / 1 obs."
     deallocate (x, vcv)
 
     ! Call with one variable, multiple obs.
@@ -1060,8 +999,8 @@ subroutine test_cov (tests)
     status = NF_STATUS_UNDEFINED
     call corrcoef (x, vcv, status=status)
     vcv_ok = all(vcv == 1.0)
-    call tc%assert_true (status == NF_STATUS_OK .and. vcv_ok, &
-        'CORRCOEF called with 1 variable, multiple obs.')
+    if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
+        error stop "CORRCOEF called with 1 variable, multiple obs."
     deallocate (x, vcv)
 
     ! === CORRCOEF tests with several variables
@@ -1108,12 +1047,9 @@ subroutine test_cov (tests)
     diff = maxval(abs(vcv - vcv_desired))
 
     vcv_ok = diff < 1.0e-3_PREC
-    call tc%assert_true (status == NF_STATUS_OK .and. vcv_ok, &
-        'CORRCOEF called with X2, X3 linear functions of X1 with error terms')
-
+    if (.not. (status == NF_STATUS_OK .and. vcv_ok)) &
+        error stop "CORRCOEF called with X2, X3 linear functions of X1 with error terms"
 
 end subroutine
-
-
 
 end program

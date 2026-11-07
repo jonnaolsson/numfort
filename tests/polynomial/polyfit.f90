@@ -7,46 +7,32 @@ program test_polynomial_polyfit
     use numfort_common_workspace, workspace => workspace_real64
     use numfort_common_testing
     use numfort_polynomial
-    
-    use fcore_testing, only: test_suite, test_case
-    use fcore_strings
-    
+
     implicit none
-    
+
     integer, parameter :: PREC = real64
-    
+
     call test_all ()
-    
+
     contains
-    
 
 subroutine test_all ()
-    type (test_suite) :: tests 
-    
-    call tests%set_label ("Polynomial fitting unit tests")
-    
-    call test_polyfit (tests)
-    call test_polyfit_deriv (tests)
-    
-    call tests%print ()
+
+    call test_polyfit ()
+    call test_polyfit_deriv ()
 
 end subroutine
 
-
-subroutine test_polyfit (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
+subroutine test_polyfit ()
 
     real (PREC), dimension(:,:), allocatable :: coefs, coefs2, y
     real (PREC), dimension(:), allocatable :: x
     type (workspace) :: work
     type (status_t) :: status
     real (PREC) :: diff
-    real (PREC), parameter :: tol = 1.0d-10
+    real (PREC), parameter :: tol=1.0d-10
 
     integer :: i, deg
-
-    tc => tests%add_test ("POLYFIT unit tests")
 
     ! Quadratic polynomials
     deg = 2
@@ -65,32 +51,26 @@ subroutine test_polyfit (tests)
     call polyfit (x, y, deg=deg, coefs=coefs2, work=work, status=status)
     diff = maxval(abs(coefs-coefs2))
 
-    call tc%assert_true (diff < tol .and. status == NF_STATUS_OK, &
-        "Fit polynomials of degree 2")
+    if (.not. (diff < tol .and. status == NF_STATUS_OK)) &
+        error stop "Fit polynomials of degree 2"
 
 end subroutine
 
+subroutine test_polyfit_deriv ()
 
-
-subroutine test_polyfit_deriv (tests)
-    class (test_suite) :: tests
-    class (test_case), pointer :: tc
-    
     real (PREC), dimension(:), allocatable :: y, coefs, coefs2, coefs_deriv
     real (PREC) :: x
     type (workspace) :: work
     integer :: deg, n, k
-    real (PREC), parameter :: xtol = 1.0d-10
-    
+    real (PREC), parameter :: xtol=1.0d-10
+
     type (status_t) :: status
-    
-    tc => tests%add_test ("POLYFIT_DERIV unit tests")
-    
+
     ! Quadratic function with all non-zero coefs
     deg = 2
     n = deg + 1
     allocate (y(n), coefs(n), coefs2(n))
-    
+
     coefs(:) = [-1.234d0, 2.688d0, 3.132d0]
     x = -6.234d0
 
@@ -101,10 +81,9 @@ subroutine test_polyfit_deriv (tests)
     end do
     deallocate (coefs_deriv)
 
-
     call polyfit_deriv (x, y, coefs2, work, status)
-    call tc%assert_true (all_close (coefs, coefs2, atol=xtol), &
-        "Polynomial of degree 2, all non-zero coefs")
+    if (.not. (all_close (coefs, coefs2, atol=xtol))) &
+        error stop "Polynomial of degree 2, all non-zero coefs"
     deallocate (y, coefs, coefs2)
 
     ! Quadratic function with some zero coefs
@@ -122,8 +101,8 @@ subroutine test_polyfit_deriv (tests)
     deallocate (coefs_deriv)
 
     call polyfit_deriv (x, y, coefs2, work, status)
-    call tc%assert_true (all_close (coefs, coefs2, atol=xtol), &
-        "Polynomial of degree 2, some zero coefs")
+    if (.not. (all_close (coefs, coefs2, atol=xtol))) &
+        error stop "Polynomial of degree 2, some zero coefs"
     deallocate (y, coefs, coefs2)
 
     ! Quadratic function with highest coefficient being zero
@@ -141,8 +120,8 @@ subroutine test_polyfit_deriv (tests)
     deallocate (coefs_deriv)
 
     call polyfit_deriv (x, y, coefs2, work, status)
-    call tc%assert_true (all_close (coefs, coefs2, atol=xtol), &
-        "Polynomial of degree 2, some zero coefs")
+    if (.not. (all_close (coefs, coefs2, atol=xtol))) &
+        error stop "Polynomial of degree 2, some zero coefs"
     deallocate (y, coefs, coefs2)
 
     ! Cubic polynomial
@@ -160,12 +139,10 @@ subroutine test_polyfit_deriv (tests)
     deallocate (coefs_deriv)
 
     call polyfit_deriv (x, y, coefs2, work, status)
-    call tc%assert_true (all_close (coefs, coefs2, atol=xtol), &
-        "Polynomial of degree 3, some zero coefs")
+    if (.not. (all_close (coefs, coefs2, atol=xtol))) &
+        error stop "Polynomial of degree 3, some zero coefs"
     deallocate (y, coefs, coefs2)
 
-
 end subroutine
-
 
 end program

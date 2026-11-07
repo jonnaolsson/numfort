@@ -107,12 +107,7 @@ The current code is tested with:
 ***
 ### Advanced build instructions
 
-The optional programs use the dependencies below:
-
-1.  The _fcore_ library available [here](https://github.com/richardfoltyn/fortran-corelib).
-    This dependency is required only for unit tests. Set `CMAKE_PREFIX_PATH` to
-    its installation prefix, or provide an existing `fcore::fcore` target in a
-    parent project.
+The library uses the dependencies below:
 
 1.  BLAS and LAPACK libraries: _numfort_ works either with Intel MKL
     or some other implementation such as OpenBLAS.
@@ -123,8 +118,8 @@ The optional programs use the dependencies below:
         wrappers when available; otherwise numfort builds its own wrappers.
         LAPACK95 is not required.
         
-        On Fedora, after setting `GCC_VERSION` as above and installing fcore
-        and MKL95, set the MKL version in your shell:
+        On Fedora, after setting `GCC_VERSION` as above and installing
+        MKL95, set the MKL version in your shell:
 
         Bash:
         ```bash
@@ -168,7 +163,7 @@ The optional programs use the dependencies below:
 - Standalone builds default to Release and a static library.
 - Project options use the `NUMFORT_` prefix:
   - `NUMFORT_BUILD_TESTS=OFF`, `NUMFORT_BUILD_EXAMPLES=OFF`: optional programs;
-    tests require fcore and run with `ctest --test-dir <build-dir>`.
+    tests run with `ctest --test-dir <build-dir>`.
   - `NUMFORT_USE_MKL=ON`, `NUMFORT_USE_OPENMP=ON`: dependency selection;
     OpenMP-specific programs follow the OpenMP option.
   - `NUMFORT_BUILD_BLAS95=OFF`: build/install wrappers; enabled automatically
