@@ -4,6 +4,8 @@ program test_optimize_root_broyden
 
     use, intrinsic :: iso_fortran_env
     use, intrinsic :: ieee_arithmetic
+    use, intrinsic :: ieee_exceptions, only: ieee_get_flag, ieee_set_flag, &
+        ieee_divide_by_zero, ieee_invalid
 
     use numfort_common
     use numfort_common_testing
@@ -26,6 +28,7 @@ subroutine test_all ()
 
     call test_maxiter ()
     call test_invalid_residual ()
+    call test_update_breakdown ()
 
 end subroutine
 
@@ -288,6 +291,88 @@ subroutine test_invalid_residual ()
 end subroutine
 
 
+subroutine test_update_breakdown ()
+    !*  Test detection and handling of zero, non-finite, and singular Broyden
+    !   inverse-Jacobian update denominators (Issue #24).
+    !
+    !   Verifies clean termination with NF_STATUS_INVALID_STATE, consistency of
+    !   returned x and fx, retention of uncorrupted inverse Jacobians, and
+    !   absence of IEEE divide-by-zero or invalid-operation flags.
+
+    type (optim_result) :: res
+    real (PREC), dimension(1) :: x1, fx1_eval
+    real (PREC), dimension(1,1) :: jac_inv1
+    real (PREC), dimension(2) :: x2, fx2_eval
+    real (PREC), dimension(2,2) :: jac_inv2
+    logical :: lres, flag_div_zero, flag_invalid
+
+    ! Case 1: Deterministic constant residual (Issue #24 reproduction)
+    ! f(x) = 1 everywhere. Initial x=0, initial inverse Jacobian [1.0], xstep=0.2.
+    ! Newton step is dx = -1.0, scaled by xstep to dx = -0.2.
+    ! Line search accepts x = -0.2 since f(-0.2) = 1.0 has norm 1.0 <= f(0) norm 1.0.
+    ! Residual change dfx = f(-0.2) - f(0) = 0.
+    ! The Sherman-Morrison denominator denom = dx^T J^{-1} dfx is identically 0.
+    ! Expected outcome: NF_STATUS_INVALID_STATE, x = -0.2, fx = 1.0, finite J^{-1},
+    ! and clean IEEE exception flags (no divide-by-zero, no invalid).
+    call ieee_set_flag (ieee_divide_by_zero, .false.)
+    call ieee_set_flag (ieee_invalid, .false.)
+
+    jac_inv1(1,1) = 1.0_PREC
+    x1 = [0.0_PREC]
+    call root_broyden (const_residual_fcn, x1, ndiff=.true., &
+        xstep=0.2_PREC, maxiter=3, jac_inv_init=jac_inv1, res=res)
+
+    call ieee_get_flag (ieee_divide_by_zero, flag_div_zero)
+    call ieee_get_flag (ieee_invalid, flag_invalid)
+    call const_residual_fcn (res%x, fx1_eval)
+
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_INVALID_STATE) &
+        .and. (abs (res%x(1) - (-0.2_PREC)) < 1.0e-12_PREC) &
+        .and. (res%fx(1) == fx1_eval(1)) .and. (fx1_eval(1) == 1.0_PREC) &
+        .and. all (ieee_is_finite (res%jac_inv)) &
+        .and. (.not. flag_div_zero) .and. (.not. flag_invalid)
+    if (.not. lres) error stop "Constant residual; singular Broyden denominator"
+
+    ! Case 2: Rank-deficient / orthogonal secant breakdown in 2D
+    ! f(x) = [1.0, 1.0 - x(1)]^T. Initial x = [1.0, 0.0]^T, so f(x) = [1.0, 0.0]^T.
+    ! Initial inverse Jacobian is identity I_2.
+    ! Full search direction is dx = - I_2 f(x) = [-1.0, 0.0]^T.
+    ! Along x + step * dx = [1 - step, 0]^T, f = [1.0, step]^T with norm sqrt(1 + step^2) > 1.
+    ! Backtracking line search selects least bad step_size = 0.25 (norm ~ 1.03077).
+    ! Accepted step dx = [-0.25, 0.0]^T, advancing x to [0.75, 0.0]^T.
+    ! Residual becomes f(x) = [1.0, 0.25]^T, so dfx = [0.0, 0.25]^T is non-zero.
+    ! However, J^{-1} dfx = [0.0, 0.25]^T is strictly orthogonal to dx = [-0.25, 0.0]^T:
+    ! denom = dot_product(dx, J^{-1} dfx) = (-0.25)*0 + 0*(0.25) = 0.
+    ! Expected outcome: NF_STATUS_INVALID_STATE, x = [0.75, 0.0]^T, fx = [1.0, 0.25]^T,
+    ! uncorrupted finite inverse Jacobian, and clean IEEE exception flags.
+    call ieee_set_flag (ieee_divide_by_zero, .false.)
+    call ieee_set_flag (ieee_invalid, .false.)
+
+    jac_inv2 = 0.0_PREC
+    jac_inv2(1,1) = 1.0_PREC
+    jac_inv2(2,2) = 1.0_PREC
+    x2 = [1.0_PREC, 0.0_PREC]
+    call root_broyden (secant_breakdown_fcn, x2, ndiff=.true., &
+        maxiter=3, jac_inv_init=jac_inv2, res=res)
+
+    call ieee_get_flag (ieee_divide_by_zero, flag_div_zero)
+    call ieee_get_flag (ieee_invalid, flag_invalid)
+    call secant_breakdown_fcn (res%x, fx2_eval)
+
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_INVALID_STATE) &
+        .and. (abs (res%x(1) - 0.75_PREC) < 1.0e-12_PREC) &
+        .and. (abs (res%x(2) - 0.0_PREC) < 1.0e-12_PREC) &
+        .and. (abs (res%fx(1) - fx2_eval(1)) < 1.0e-12_PREC) &
+        .and. (abs (res%fx(2) - fx2_eval(2)) < 1.0e-12_PREC) &
+        .and. (abs (fx2_eval(1) - 1.0_PREC) < 1.0e-12_PREC) &
+        .and. (abs (fx2_eval(2) - 0.25_PREC) < 1.0e-12_PREC) &
+        .and. all (ieee_is_finite (res%jac_inv)) &
+        .and. (.not. flag_div_zero) .and. (.not. flag_invalid)
+    if (.not. lres) error stop "Orthogonal secant breakdown; rank deficient residual change"
+
+end subroutine
+
+
 subroutine nan_residual_fcn (x, fx)
     real (PREC), intent(in), dimension(:), contiguous :: x
     real (PREC), intent(out), dimension(:), contiguous :: fx
@@ -325,6 +410,26 @@ subroutine recovery_fcn (x, fx)
     else
         fx(1) = x(1) - 0.5_PREC
     end if
+end subroutine
+
+
+subroutine const_residual_fcn (x, fx)
+    real (PREC), intent(in), dimension(:), contiguous :: x
+    real (PREC), intent(out), dimension(:), contiguous :: fx
+
+    ! Piecewise-flat residual that remains constant regardless of x
+    if (size (x) > 0) fx(1) = 1.0_PREC
+end subroutine
+
+
+subroutine secant_breakdown_fcn (x, fx)
+    real (PREC), intent(in), dimension(:), contiguous :: x
+    real (PREC), intent(out), dimension(:), contiguous :: fx
+
+    ! Residual change along x(1) direction is orthogonal to x(1) step:
+    ! f1 is constant 1.0; f2 changes as 1.0 - x(1).
+    fx(1) = 1.0_PREC
+    fx(2) = 1.0_PREC - x(1)
 end subroutine
 
 

@@ -264,7 +264,7 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
     type (optim_result), intent(inout), optional, target :: res
 
     real (PREC) :: ltol, lxtol
-    real (PREC) :: dx_scale, denom, nrm, nrmp1, nrm_last, nrm_upd
+    real (PREC) :: dx_scale, denom, denom_scale, nrm, nrmp1, nrm_last, nrm_upd
     integer :: lmaxiter, lmaxfev, k, n, i, nrwrk, niwrk, liprint
     integer :: lwork_inv, liwork_inv
         !   Workspace array sizes use for INV routine
@@ -563,6 +563,10 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
         ! Use helper routine as otherwise compiler creates temp. arrays
         call diff1d (fx, fxlast, dfx)
 
+        ! Keep FXLAST and NRMLAST synchronized with updated X
+        call COPY (n, fx, 1, fxlast, 1)
+        nrm_last = nrm_upd
+
         ! 4. Update inverse of J_k
         ! Compute J^{-1}_{k-1} dfx_k
         alpha = 1.0_PREC
@@ -571,6 +575,16 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
         call GEMV (trans, m, n, alpha, jac_inv, lda, dfx, incx, beta, vec1, incy)
         ! Denominator in expression for J^{-1}_k, dx_k^T J^{-1}_{k-1} dfx_k
         denom = DOT (n, vec1, incx, dx, incy)
+
+        ! Cauchy-Schwarz upper bound ||dx||_2 * ||vec1||_2 used as relative scale
+        ! to detect near-orthogonal or cancelled update directions
+        denom_scale = norm2 (dx) * norm2 (vec1)
+        if (.not. ieee_is_finite (denom) .or. abs (denom) <= tiny (1.0_PREC) .or. &
+            abs (denom) <= epsilon (1.0_PREC) * denom_scale) then
+            ptr_res%msg = "Singular or unsafe Broyden update denominator"
+            status = NF_STATUS_INVALID_STATE
+            goto 100
+        end if
 
         ! Compute transpose of dx_k^T * J^{-1}_{k-1}
         trans = 'T'
@@ -589,10 +603,6 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
         ! which adds alpha * VEC1 * VEC2^T to J^{-1}_{k-1}
         alpha = 1.0_PREC / denom
         call GER (m, n, alpha, vec1, incx, vec2, incy, jac_inv, lda)
-
-        ! Update for next iteration
-        call COPY (n, fx, 1, fxlast, 1)
-        nrm_last = nrm_upd
     end do
 
     ptr_res%msg = 'Max. number of iterations exceeded'
