@@ -16,6 +16,7 @@ program test_optimize_root_broyden
     implicit none
 
     integer, parameter :: PREC = real64
+    integer :: callback_count = 0
 
     call test_all ()
 
@@ -30,6 +31,7 @@ subroutine test_all ()
     call test_invalid_residual ()
     call test_update_breakdown ()
     call test_initial_root ()
+    call test_maxfev ()
 
 end subroutine
 
@@ -140,7 +142,7 @@ subroutine test_maxiter ()
     call root_broyden (func2_fcn, func2_jac, x, tol=1.0d-8, xstep=0.1d0, &
         maxfev=1, res=res)
     lres = (.not. res%success) .and. res%status == NF_STATUS_MAX_EVAL .and. &
-        res%nit == 1
+        res%nit == 0 .and. res%nfev == 1
     if (.not. (lres)) error stop "Separate FCN, JAC; MAXFUN=1"
 
     deallocate (x, fx, x0)
@@ -160,7 +162,7 @@ subroutine test_maxiter ()
     call root_broyden (func2_fcn, x, ndiff=.true., tol=1.0d-8, dstep=1.0d-5, &
         maxfev=1, res=res)
     lres = (.not. res%success) .and. res%status == NF_STATUS_MAX_EVAL .and. &
-        res%nit == 1
+        res%nit == 0 .and. res%nfev == 1
     if (.not. (lres)) error stop "Numerical diff.; MAXFUN=1"
 
     deallocate (x, fx, x0)
@@ -529,6 +531,184 @@ subroutine nan_initial_fcn (x, fx)
 
     ! Always returns quiet NaN
     if (size (x) > 0) fx(1) = ieee_value (0.0_PREC, ieee_quiet_nan)
+end subroutine
+
+
+subroutine test_maxfev ()
+    !*  Test strict enforcement of maxfev across all stages of Broyden's method:
+    !   - Entry budget check (maxfev = 0).
+    !   - Early convergence at initial guess (maxfev = 1).
+    !   - Numerical differentiation budget check for scalar and multivariate problems.
+    !   - Analytical Jacobian differentiation budget check.
+    !   - Line search trial exhaustion before and during trials.
+    !   - Exact convergence when budget matches required evaluations.
+
+    type (optim_result) :: res
+    real (PREC), dimension(:), allocatable :: x
+    real (PREC), dimension(1,1) :: jac_inv_init
+    logical :: lres
+
+    ! Case 1: Entry budget check with maxfev = 0
+    ! Must terminate before the initial evaluation with NF_STATUS_MAX_EVAL.
+    allocate (x(1))
+    x(1) = 0.0_PREC
+    callback_count = 0
+    call root_broyden (counted_root_fcn, x, ndiff=.true., maxfev=0, res=res)
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_MAX_EVAL) &
+        .and. (res%nit == 0) .and. (res%nfev == 0) &
+        .and. (callback_count == 0) .and. (res%x(1) == 0.0_PREC) &
+        .and. (.not. allocated (res%jac_inv))
+    if (.not. lres) error stop "maxfev = 0 budget check at entry"
+    deallocate (x)
+
+    ! Case 2: Early convergence at initial guess with maxfev = 1
+    ! f(x) = x - 1 evaluated at x = 1 gives f(1) = 0 < tol. Exits at nit = 0.
+    allocate (x(1))
+    x(1) = 1.0_PREC
+    callback_count = 0
+    call root_broyden (counted_root_fcn, x, ndiff=.true., maxfev=1, res=res)
+    lres = res%success .and. (res%status == NF_STATUS_OK) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (callback_count == 1) &
+        .and. (abs (res%x(1) - 1.0_PREC) < 1.0e-12_PREC)
+    if (.not. lres) error stop "maxfev = 1 initial root convergence"
+    deallocate (x)
+
+    ! Case 3: Numerical differentiation budget check with n = 1 and maxfev = 1 (GH #26)
+    ! Initial evaluation takes 1 call. Numerical differentiation requires n = 1 call.
+    ! Total required is 1 + 1 = 2 > maxfev. Must terminate before differentiation.
+    allocate (x(1))
+    x(1) = 0.0_PREC
+    callback_count = 0
+    call root_broyden (counted_root_fcn, x, ndiff=.true., maxfev=1, res=res)
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_MAX_EVAL) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (callback_count == 1) .and. (res%x(1) == 0.0_PREC) &
+        .and. (abs (res%fx(1) - (-1.0_PREC)) < 1.0e-12_PREC)
+    if (.not. lres) error stop "maxfev = 1 scalar numdiff budget check"
+    deallocate (x)
+
+    ! Case 4: Multivariate numerical differentiation budget check (n = 3, maxfev = 2)
+    ! Initial evaluation takes 1 call. Numerical differentiation requires n = 3 calls.
+    ! Total required is 1 + 3 = 4 > maxfev. Must terminate before differentiation.
+    allocate (x(3))
+    x(:) = 0.0_PREC
+    callback_count = 0
+    call root_broyden (counted_multivar_fcn, x, ndiff=.true., maxfev=2, res=res)
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_MAX_EVAL) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (callback_count == 1) .and. all (res%x == 0.0_PREC)
+    if (.not. lres) error stop "Multivariate numdiff budget check"
+    deallocate (x)
+
+    ! Case 5: Analytical Jacobian budget check (n = 2, maxfev = 1)
+    ! Initial evaluation takes 1 call. Analytical Jacobian evaluation takes 1 call.
+    ! Total required is 1 + 1 = 2 > maxfev. Must terminate before Jacobian evaluation.
+    allocate (x(2))
+    x(:) = 0.0_PREC
+    callback_count = 0
+    call root_broyden (counted_multivar_fcn, counted_analytical_jac, x, &
+        maxfev=1, res=res)
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_MAX_EVAL) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (callback_count == 1) .and. all (res%x == 0.0_PREC)
+    if (.not. lres) error stop "Analytical Jacobian budget check"
+    deallocate (x)
+
+    ! Case 6: Line search budget exhaustion before any trial step can be evaluated
+    ! jac_inv_init bypasses differentiation. Initial residual takes 1 call (nfev = 1).
+    ! maxfev = 1 allows 0 line search evaluations; dumb_line_search exits immediately.
+    allocate (x(1))
+    x(1) = 0.0_PREC
+    jac_inv_init(1,1) = 10.0_PREC
+    callback_count = 0
+    call root_broyden (counted_root_fcn, x, ndiff=.true., &
+        jac_inv_init=jac_inv_init, maxfev=1, res=res)
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_MAX_EVAL) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (callback_count == 1) .and. (res%x(1) == 0.0_PREC)
+    if (.not. lres) error stop "Line search exhaustion before trial evaluation"
+    deallocate (x)
+
+    ! Case 7: Line search budget exhaustion after evaluating first trial step
+    ! Initial evaluation takes 1 call (f(0) = -1). Step dx = 10 produces f(10) = 9.
+    ! Trial 1 evaluation takes 1 call (total nfev = 2 = maxfev). Backtracking halts.
+    allocate (x(1))
+    x(1) = 0.0_PREC
+    jac_inv_init(1,1) = 10.0_PREC
+    callback_count = 0
+    call root_broyden (counted_root_fcn, x, ndiff=.true., &
+        jac_inv_init=jac_inv_init, maxfev=2, res=res)
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_MAX_EVAL) &
+        .and. (res%nit == 1) .and. (res%nfev == 2) &
+        .and. (callback_count == 2)
+    if (.not. lres) error stop "Line search exhaustion after trial evaluation"
+    deallocate (x)
+
+    ! Case 8: Exact convergence when budget matches required evaluations
+    ! Initial evaluation takes 1 call (f(0) = -1). Step dx = 1.0 reaches f(1) = 0.
+    ! Trial 1 evaluation takes 1 call (total nfev = 2 = maxfev). Converges at nit = 1.
+    allocate (x(1))
+    x(1) = 0.0_PREC
+    jac_inv_init(1,1) = 1.0_PREC
+    callback_count = 0
+    call root_broyden (counted_root_fcn, x, ndiff=.true., &
+        jac_inv_init=jac_inv_init, maxfev=2, res=res)
+    lres = res%success .and. (res%status == NF_STATUS_OK) &
+        .and. (res%nit == 1) .and. (res%nfev == 2) &
+        .and. (callback_count == 2) &
+        .and. (abs (res%x(1) - 1.0_PREC) < 1.0e-12_PREC)
+    if (.not. lres) error stop "Exact convergence with tight budget"
+    deallocate (x)
+
+end subroutine
+
+
+subroutine counted_root_fcn (x, fx)
+    !*  Scalar linear test function f(x) = x - 1 with independent callback counter
+    !   used to verify maxfev enforcement.
+
+    real (PREC), intent(in), dimension(:), contiguous :: x
+        !*  Evaluation point
+    real (PREC), intent(out), dimension(:), contiguous :: fx
+        !*  Residual vector f(x) = x - 1
+
+    callback_count = callback_count + 1
+    if (size (x) > 0) fx(1) = x(1) - 1.0_PREC
+end subroutine
+
+
+subroutine counted_multivar_fcn (x, fx)
+    !*  Multivariate test function f(x) = x - 1 with independent callback counter
+    !   used to verify differentiation evaluation budgets.
+
+    real (PREC), intent(in), dimension(:), contiguous :: x
+        !*  Evaluation point
+    real (PREC), intent(out), dimension(:), contiguous :: fx
+        !*  Residual vector f(x) = x - 1
+
+    callback_count = callback_count + 1
+    fx(:) = x(:) - 1.0_PREC
+end subroutine
+
+
+subroutine counted_analytical_jac (x, jac)
+    !*  Analytical Jacobian for multivariate f(x) = x - 1 (identity matrix) with
+    !   independent callback counter used to verify analytical Jacobian budgets.
+
+    real (PREC), intent(in), dimension(:), contiguous :: x
+        !*  Evaluation point
+    real (PREC), intent(out), dimension(:,:), contiguous :: jac
+        !*  Jacobian matrix (identity matrix)
+
+    integer :: i
+
+    callback_count = callback_count + 1
+    jac(:,:) = 0.0_PREC
+    do i = 1, min (size (jac, 1), size (jac, 2))
+        jac(i,i) = 1.0_PREC
+    end do
+    if (size (x) < 0) jac(1,1) = 0.0_PREC
 end subroutine
 
 

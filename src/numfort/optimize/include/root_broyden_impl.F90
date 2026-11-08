@@ -265,7 +265,7 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
 
     real (PREC) :: ltol, lxtol
     real (PREC) :: dx_scale, denom, denom_scale, nrm, nrmp1, nrm_last, nrm_upd
-    integer :: lmaxiter, lmaxfev, k, n, i, nrwrk, niwrk, liprint
+    integer :: lmaxiter, lmaxfev, req_fev, k, nit, n, i, nrwrk, niwrk, liprint
     integer :: lwork_inv, liwork_inv
         !   Workspace array sizes use for INV routine
     integer, dimension(2) :: shp2d
@@ -291,7 +291,7 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
     
     status = NF_STATUS_OK
     ! Outer iteration counter (nit) reported in result
-    k = 0
+    nit = 0
     ! Tracks whether jac_inv holds a valid caller-supplied or computed inverse
     jac_inv_valid = .false.
 
@@ -336,8 +336,13 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
         rstep, xstep, status, ptr_res%msg)
     if (NF_STATUS_INVALID_ARG .in. status) goto 100
 
+    if (lmaxfev == 0) then
+        ptr_res%msg = "Max. number of function evaluations exceeded"
+        status = NF_STATUS_MAX_EVAL
+        goto 100
+    end if
+
     n = size(x)
-    k = 0
 
     ! Arguments to GEMV that never change
     m = n
@@ -445,6 +450,18 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
     end if
 
     if (.not. has_jac_inv) then
+        if (fcn%num_diff) then
+            req_fev = n
+        else
+            req_fev = 1
+        end if
+
+        if (fcn%nfev + req_fev > lmaxfev) then
+            ptr_res%msg = "Max. number of function evaluations exceeded"
+            status = NF_STATUS_MAX_EVAL
+            goto 100
+        end if
+
         ! Compute Jacobian at initial point. Reuse f(X) evaluated above in
         ! case of numerical differentiation.
         call dispatch_jac (fcn, x, jac, fxlast)
@@ -510,12 +527,18 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
         dx(:) = dx_scale * dx
 
         call dumb_line_search (fcn, x, nrm_last, liprint, x_ls, fx_ls, dx, fx, &
-            status)
+            lmaxfev, status)
 
-        if (status /= NF_STATUS_OK) then
+        if (status == NF_STATUS_MAX_EVAL) then
+            ptr_res%msg = "Max. number of function evaluations exceeded"
+            goto 100
+        else if (status /= NF_STATUS_OK) then
             ptr_res%msg = "Invalid function value encountered during line search"
             goto 100
         end if
+
+        ! Record completed iteration count once line search finds an admissible step
+        nit = k
 
          ! 2. Check convergence in terms of function values
         nrm_upd = norm2(fx)
@@ -618,17 +641,17 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
     ptr_res%msg = 'Max. number of iterations exceeded'
     status = NF_STATUS_MAX_ITER
     ! Correct number of iterations
-    k = lmaxiter
+    nit = lmaxiter
 
 100 continue
 
     if (present(res)) then
         if (jac_inv_valid) then
             call result_update (ptr_res, x, fxlast, jac_inv=jac_inv, &
-                status=status, nit=k, nfev=fcn%nfev)
+                status=status, nit=nit, nfev=fcn%nfev)
         else
             call result_update (ptr_res, x, fxlast, &
-                status=status, nit=k, nfev=fcn%nfev)
+                status=status, nit=nit, nfev=fcn%nfev)
         end if
     end if
 
@@ -650,7 +673,7 @@ end subroutine
 
 
 recursive subroutine dumb_line_search (fcn, x, nrm, iprint, &
-        x_ls, fx_ls, dx, fx, status)
+        x_ls, fx_ls, dx, fx, maxfev, status)
     !*  DUMB_LINE_SEARCH uses backtracking to identify the step size in a
     !   given direction that yields a lower Euclidean norm of the objective
     !   function than at a given point X.
@@ -671,9 +694,13 @@ recursive subroutine dumb_line_search (fcn, x, nrm, iprint, &
         !*  On entry, contains the function value evaluated at X. On exit,
         !   contains the function value at X + DX where DX is the updated
         !   value computed by the routine.
+    integer, intent(in) :: maxfev
+        !*  Max. number of function evaluations allowed
     type (status_t), intent(out) :: status
         !*  Status code: NF_STATUS_OK if an admissible finite trial was
-        !   identified, or NF_STATUS_INVALID_STATE if all trials were invalid.
+        !   identified, NF_STATUS_MAX_EVAL if budget was exhausted before any
+        !   admissible trial was evaluated, or NF_STATUS_INVALID_STATE if all
+        !   evaluated trials were invalid.
 
     integer :: i, n
     real (PREC) :: step_size, nrm_ls, nrm_ls_best, step_best
@@ -693,6 +720,8 @@ recursive subroutine dumb_line_search (fcn, x, nrm, iprint, &
     end if
 
     do i = 1, LINESEARCH_MAX_STEPS
+        if (fcn%nfev >= maxfev) exit
+
         step_size = (LINESEARCH_MAX_STEPS - i + 1.0_PREC) / LINESEARCH_MAX_STEPS
         x_ls(:) = x + step_size * dx
 
@@ -733,6 +762,8 @@ recursive subroutine dumb_line_search (fcn, x, nrm, iprint, &
         ! No step size with decreasing objective found, take the least bad
         dx = step_best * dx
         status = NF_STATUS_OK
+    else if (fcn%nfev >= maxfev) then
+        status = NF_STATUS_MAX_EVAL
     else
         status = NF_STATUS_INVALID_STATE
     end if
