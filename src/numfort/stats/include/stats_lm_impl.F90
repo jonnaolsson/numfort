@@ -178,6 +178,16 @@ pure subroutine get_dims_2d (X, Y, coefs, intercept, add_intercept, trans_x, &
         call check_cond (size(weights) == lnobs, NAME, &
             'WEIGHTS: Non-conformable arrays', lstatus)
         if (lstatus /= NF_STATUS_OK) goto 100
+        ! Reject invalid weights before callers normalize or take square roots.
+        call check_cond (all(ieee_is_finite(weights)), NAME, &
+            "WEIGHTS: Values must be finite", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        call check_cond (all(weights >= 0.0_PREC), NAME, &
+            "WEIGHTS: Values must be nonnegative", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        call check_cond (sum(weights) > 0.0_PREC, NAME, &
+            "WEIGHTS: Sum must be positive", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
     end if
 
     if (present(mask)) then
@@ -826,7 +836,7 @@ subroutine pcr_2d (Y, scores, sval, loadings, coefs, shift_x, scale_x, &
 
     real (PREC), dimension(:,:), pointer, contiguous :: ptr_Yp
     real (PREC), dimension(:,:), allocatable :: PCy, lcoefs
-    real (PREC), dimension(:), allocatable :: shift_y
+    real (PREC), dimension(:), allocatable :: shift_y, lweights
     ! Arguments to GEMM
     character (1) :: transa, transb
     integer :: m, n, k, lda, ldb, ldc
@@ -860,8 +870,15 @@ subroutine pcr_2d (Y, scores, sval, loadings, coefs, shift_x, scale_x, &
     if (ltrans_y .or. lcenter .or. present(weights_sqrt)) then
         allocate (ptr_Yp(Nobs,Nlhs))
         allocate (shift_y(Nlhs))
-        call transform_regressors (Y, ptr_Yp, center=lcenter, scale=.false., &
-            trans=ltrans_y, shift_x=shift_y, status=lstatus)
+        if (present(weights_sqrt)) then
+            allocate (lweights(Nobs))
+            lweights(:) = weights_sqrt**2.0_PREC
+            call transform_regressors (Y, ptr_Yp, center=lcenter, scale=.false., &
+                trans=ltrans_y, shift_x=shift_y, weights=lweights, status=lstatus)
+        else
+            call transform_regressors (Y, ptr_Yp, center=lcenter, scale=.false., &
+                trans=ltrans_y, shift_x=shift_y, status=lstatus)
+        end if
         if (lstatus /= NF_STATUS_OK) goto 100
 
         if (present(weights_sqrt)) then
@@ -1117,22 +1134,28 @@ subroutine pcr_pca_2d (conf, X, Y, coefs, ncomp, intercept, weights, res, status
     allocate (shift_x(Nrhs), scale_x(Nrhs))
     allocate (propvar(Nrhs), source=0.0_PREC)
 
-    ! Skip PCA if no RHS are present
-    if (Nrhs == 0) goto 50
-
-    ! --- Transform X ---
-
     if (present(weights)) then
         allocate (weights_sqrt(Nobs))
         weights_sqrt(:) = weights / sum(weights)
         weights_sqrt(:) = sqrt(weights_sqrt)
     end if
 
+    ! Skip PCA if no RHS are present
+    if (Nrhs == 0) goto 50
+
+    ! --- Transform X ---
+
     if (lconf%trans_x .or. lconf%center .or. lconf%scale .or. present(weights)) then
         allocate (ptr_Xp(Nobs,Nrhs))
-        call transform_regressors (X, ptr_Xp, trans=lconf%trans_x, &
-            center=lconf%center, scale=lconf%scale, shift_x=shift_x, &
-            scale_x=scale_x, drop_na=.false., status=lstatus)
+        if (present(weights)) then
+            call transform_regressors (X, ptr_Xp, trans=lconf%trans_x, &
+                center=lconf%center, scale=lconf%scale, shift_x=shift_x, &
+                scale_x=scale_x, drop_na=.false., weights=weights, status=lstatus)
+        else
+            call transform_regressors (X, ptr_Xp, trans=lconf%trans_x, &
+                center=lconf%center, scale=lconf%scale, shift_x=shift_x, &
+                scale_x=scale_x, drop_na=.false., status=lstatus)
+        end if
         if (lstatus /= NF_STATUS_OK) goto 100
 
         if (present(weights)) then
@@ -1201,8 +1224,10 @@ subroutine pcr_pca_2d (conf, X, Y, coefs, ncomp, intercept, weights, res, status
     ! --- Store result object ---
 
     if (present(intercept)) then
-        intercept = 0.0
-        intercept(1:Nlhs) = lintercept(1:Nlhs)
+        intercept = 0.0_PREC
+        if (lconf%add_intercept) then
+            intercept(1:Nlhs) = lintercept(1:Nlhs)
+        end if
     end if
 
     if (present(coefs)) then
@@ -1234,10 +1259,15 @@ subroutine pcr_pca_2d (conf, X, Y, coefs, ncomp, intercept, weights, res, status
             call move_alloc (lcoefs, res%coefs_multi)
         end if
 
-        if (allocated(res%intercept_multi)) then
-            call copy_alloc (lintercept, res%intercept_multi)
+        if (lconf%add_intercept) then
+            if (allocated(res%intercept_multi)) then
+                call copy_alloc (lintercept, res%intercept_multi)
+            else
+                call move_alloc (lintercept, res%intercept_multi)
+            end if
         else
-            call move_alloc (lintercept, res%intercept_multi)
+            call cond_alloc (res%intercept_multi, Nlhs)
+            res%intercept_multi(:) = 0.0_PREC
         end if
     end if
 
@@ -1446,8 +1476,7 @@ subroutine pcr_pca_masked_2d (conf, X, Y, mask, coefs, ncomp, intercept, &
             Ypack(1:Nobs_i) = pack (ptr_Yp(:,i), ptr_mask(:,i))
             if (present(weights)) then
                 Wpack(1:Nobs_i) = pack (weights, ptr_mask(:,i))
-                ! Re-normalize weights
-                Wpack(1:Nobs_i) = Wpack(1:Nobs_i) / sum(Wpack(1:Nobs_i))
+                ! The nested fit validates and normalizes the subset weights.
             end if
 
             if (present(weights)) then
@@ -1457,6 +1486,7 @@ subroutine pcr_pca_masked_2d (conf, X, Y, mask, coefs, ncomp, intercept, &
                 call pcr (lconf, Xpack(:,1:Nobs_i), Ypack(1:Nobs_i), lcoefs, &
                     ncomp_i, lintercept, res=lres, status=lstatus)
             end if
+            if (lstatus /= NF_STATUS_OK) goto 100
 
             var_rhs = lres%var_rhs
         else
@@ -1526,7 +1556,7 @@ subroutine pcr_pca_by_lhs (conf, X, Y, mask, weights, ncomp, coefs, intercept, &
     real (PREC), dimension(:,:), allocatable :: lcoefs
     real (PREC), dimension(:), allocatable :: lintercept
     real (PREC), dimension(:,:), pointer, contiguous :: ptr_Xp, ptr_Yp
-    real (PREC), dimension(:,:), allocatable :: X_lhs_T, Xw_all
+    real (PREC), dimension(:,:), allocatable :: X_lhs_T, Xw_all, xp_lhs
     real (PREC), dimension(:), allocatable :: Y_lhs, W_lhs
     real (PREC), dimension(:), allocatable :: W_all
     real (PREC), dimension(:,:), allocatable :: scores, loadings
@@ -1621,38 +1651,33 @@ subroutine pcr_pca_by_lhs (conf, X, Y, mask, weights, ncomp, coefs, intercept, &
         allocate (sval_all(Nrhs))
         allocate (shift_x_all(Nrhs), scale_x_all(Nrhs))
 
-        ! Apply weights to X, if applicatble
+        allocate (Xw_all(Nobs,Nrhs))
         if (has_weights) then
-            allocate (Xw_all, source=X)
-
             weights_total = sum(weights)
             allocate (W_all, source=weights)
             W_all(:) = W_all / weights_total
             W_all(:) = sqrt(W_all)
 
-            ! Re-weighted RHS data
-            if (lconf%trans_x) then
-                do i = 1, Nobs
-                    Xw_all(:,i) = Xw_all(:,i) * W_all(i)
-                end do
-            else
-                do i = 1, Nrhs
-                    Xw_all(:,i) = Xw_all(:,i) * W_all
-                end do
-            end if
+            call transform_regressors (X, Xw_all, trans=lconf%trans_x, &
+                center=lconf%center, scale=lconf%scale, shift_x=shift_x_all, &
+                scale_x=scale_x_all, drop_na=.false., weights=weights, status=lstatus)
+            if (lstatus /= NF_STATUS_OK) goto 100
 
-            ptr_Xp => Xw_all
+            do i = 1, Nrhs
+                Xw_all(:,i) = Xw_all(:,i) * W_all
+            end do
         else
-            ptr_Xp => X
+            call transform_regressors (X, Xw_all, trans=lconf%trans_x, &
+                center=lconf%center, scale=lconf%scale, shift_x=shift_x_all, &
+                scale_x=scale_x_all, drop_na=.false., status=lstatus)
+            if (lstatus /= NF_STATUS_OK) goto 100
         end if
 
-        call pca (ptr_Xp, center=.true., scale=.true., &
-            trans_x=lconf%trans_x, scores=scores_all, sval=sval_all, &
-            loadings=loadings_all, shift_x=shift_x_all, scale_x=scale_x_all, &
-            status=lstatus)
+        call pca (Xw_all, center=.false., scale=.false., &
+            trans_x=.false., scores=scores_all, sval=sval_all, &
+            loadings=loadings_all, status=lstatus)
 
-        if (allocated(Xw_all)) deallocate (Xw_all)
-        nullify (ptr_Xp)
+        deallocate (Xw_all)
 
         if (.not. (NF_STATUS_OK .in. lstatus)) then
             status_code = lstatus
@@ -1752,19 +1777,29 @@ subroutine pcr_pca_by_lhs (conf, X, Y, mask, weights, ncomp, coefs, intercept, &
             call copy (ptr_Yp(:,j), Y_lhs(1:Nobs_lhs), ptr_mask(:,j))
             ptr_Y_lhs => Y_lhs(1:Nobs_lhs)
 
-            ! Create contiguous weights and apply them to RHS variables
+            ! Keep raw subset weights until weighted centering and scaling are done.
+            nullify (ptr_W_lhs)
             if (has_weights) then
                 call copy (weights, W_lhs(1:Nobs_lhs), ptr_mask(:,j))
-
                 weights_lhs = sum(W_lhs(1:Nobs_lhs))
-                W_lhs(1:Nobs_lhs) = W_lhs(1:Nobs_lhs) / weights_lhs
-                W_lhs(1:Nobs_lhs) = sqrt(W_lhs(1:Nobs_lhs))
-
                 ptr_W_lhs => W_lhs(1:Nobs_lhs)
+            end if
 
-                ! Computed weighted RHS variables
-                do i = 1, Nobs_lhs
-                    X_lhs_T(:,i) = X_lhs_T(:,i) * W_lhs(i)
+            call cond_alloc (xp_lhs, [Nobs_lhs, Nrhs])
+            call transform_regressors (X_lhs_T(:,1:Nobs_lhs), xp_lhs, &
+                trans=.true., center=lconf%center, scale=lconf%scale, &
+                shift_x=shift_x, scale_x=scale_x, drop_na=.false., &
+                weights=ptr_W_lhs, status=lstatus)
+            if (lstatus /= NF_STATUS_OK) then
+                status_code = lstatus
+                cycle loop_lhs
+            end if
+
+            if (has_weights) then
+                ! Apply weights after computing moments in the original units.
+                W_lhs(1:Nobs_lhs) = sqrt(W_lhs(1:Nobs_lhs) / weights_lhs)
+                do i = 1, Nrhs
+                    xp_lhs(:,i) = xp_lhs(:,i) * W_lhs(1:Nobs_lhs)
                 end do
             end if
 
@@ -1774,10 +1809,10 @@ subroutine pcr_pca_by_lhs (conf, X, Y, mask, weights, ncomp, coefs, intercept, &
             shp(2) = Nrhs
             call cond_alloc (scores, shp(1:2))
 
-            ! Perform PCA on subset of observations
-            call pca (X_lhs_T(:,1:Nobs_lhs), center=.true., scale=.true., &
-                trans_x=.true., scores=scores, sval=sval, &
-                loadings=loadings, shift_x=shift_x, scale_x=scale_x, status=lstatus)
+            ! PCA must not center or scale the already weighted matrix again.
+            call pca (xp_lhs, center=.false., scale=.false., &
+                trans_x=.false., scores=scores, sval=sval, &
+                loadings=loadings, status=lstatus)
             if (.not. (NF_STATUS_OK .in. lstatus)) then
                 status_code = lstatus
                 cycle loop_lhs
@@ -1791,7 +1826,8 @@ subroutine pcr_pca_by_lhs (conf, X, Y, mask, weights, ncomp, coefs, intercept, &
         else
             ! Use precomputed PCA data derived from all RHS observations
             ptr_Y_lhs => ptr_Yp(:,j)
-            ptr_W_lhs => W_all
+            nullify (ptr_W_lhs)
+            if (has_weights) ptr_W_lhs => W_all
 
             ptr_scores => scores_all
             ptr_loadings => loadings_all
@@ -1838,11 +1874,12 @@ subroutine pcr_pca_by_lhs (conf, X, Y, mask, weights, ncomp, coefs, intercept, &
             k = min(lconf%ncomp_max, k)
         end if
 
-        ! --- Run PC regression ---
+        ! Center Y consistently with the X preprocessing above.
 
         call pcr (ptr_Y_lhs, ptr_scores(:,1:k), ptr_sval(1:k), &
             ptr_loadings(:,1:k), lcoefs(:,j), shift_x=ptr_shift_x, &
-            scale_x=ptr_scale_x, add_intercept=conf%add_intercept, &
+            scale_x=ptr_scale_x, add_intercept=lconf%add_intercept, &
+            center=lconf%center, &
             intercept=lintercept(j), weights_sqrt=ptr_W_lhs, status=lstatus)
         if (lstatus /= NF_STATUS_OK) then
             status_code = lstatus
@@ -1862,6 +1899,10 @@ subroutine pcr_pca_by_lhs (conf, X, Y, mask, weights, ncomp, coefs, intercept, &
         end if
 
     end do loop_lhs
+
+    ! Do not publish results or average weights after a failed response fit.
+    lstatus = status_code
+    if (lstatus /= NF_STATUS_OK) goto 100
 
     if (present(intercept)) then
         intercept(1:Nlhs) = lintercept(1:Nlhs)
@@ -1957,7 +1998,7 @@ subroutine pcr_cv_pooled_2d (conf, X, Y, ncomp, weights, mask, rmse, status)
 
     call get_dims (X, Y, mask=mask, add_intercept=lconf%add_intercept, &
         trans_x=lconf%trans_x, trans_y=lconf%trans_y, nobs=nobs, nrhs=Nrhs, &
-        nlhs=nlhs, nconst_add=Nconst_add, status=lstatus)
+        nlhs=nlhs, nconst_add=Nconst_add, weights=weights, status=lstatus)
     if (lstatus /= NF_STATUS_OK) goto 100
 
     if (present(weights)) then
@@ -2165,7 +2206,7 @@ subroutine pcr_cv_separate_2d (conf, X, Y, ncomp, weights, mask, rmse, status)
 
     call get_dims (X, Y, mask=mask, add_intercept=lconf%add_intercept, &
         trans_x=lconf%trans_x, trans_y=lconf%trans_y, nobs=nobs, nrhs=Nrhs, &
-        nlhs=nlhs, nconst_add=Nconst_add, status=lstatus)
+        nlhs=nlhs, nconst_add=Nconst_add, weights=weights, status=lstatus)
     if (lstatus /= NF_STATUS_OK) goto 100
 
     call check_cond (size(ncomp) == Nlhs, NAME, 'NCOMP: Non-conformable array', lstatus)
@@ -2396,7 +2437,7 @@ subroutine pcr_cv_dispatch_folds_omp (conf, X, Y, folds_ifrom, folds_size, &
     real (PREC), intent(in), dimension(:), contiguous, optional, target :: weights
     logical, intent(in), dimension(:,:), contiguous, optional :: mask
 
-    integer :: status_code, i, ifrom, Ntest, Nfolds
+    integer :: status_code, fold_status, i, ifrom, Ntest, Nfolds
     logical :: has_mask
     type (status_t) :: lstatus
     real (PREC), dimension(:), contiguous, pointer :: ptr_weights
@@ -2414,7 +2455,7 @@ subroutine pcr_cv_dispatch_folds_omp (conf, X, Y, folds_ifrom, folds_size, &
     !$omp parallel default(none) &
     !$omp shared(Nfolds,folds_ifrom,folds_size,conf,X,Y,mse_ncomp) &
     !$omp shared(ptr_weights,mask,has_mask,mse_weights) &
-    !$omp private(i,ifrom,Ntest,lstatus) &
+    !$omp private(i,ifrom,Ntest,lstatus,fold_status) &
     !$omp reduction(ior: status_code)
 
     ! Initalize again to avoid gfortran warnings
@@ -2432,8 +2473,9 @@ subroutine pcr_cv_dispatch_folds_omp (conf, X, Y, folds_ifrom, folds_size, &
                 mse_weights(:,:,i), weights=ptr_weights, status=lstatus)
         end if
 
-        ! Convert to integer to which IOR reduction can be applied
-        status_code = lstatus
+        ! Retain failures from earlier folds handled by this thread.
+        fold_status = lstatus
+        status_code = ior(status_code, fold_status)
     end do
     !$omp end do
     !$omp end parallel
@@ -2463,6 +2505,7 @@ subroutine pcr_cv_dispatch_folds (conf, X, Y, folds_ifrom, folds_size, &
     has_mask = present(mask)
     Nfolds = size(folds_ifrom)
 
+    status = NF_STATUS_OK
     do i = 1, Nfolds
         ifrom = folds_ifrom(i)
         Ntest = folds_size(i)
@@ -2514,7 +2557,7 @@ subroutine pcr_cv_mse (conf, X, Y, test_ifrom, Ntest, mse_ncomp, mse_weights, &
 
     call get_dims (X, Y, add_intercept=conf%add_intercept, trans_x=conf%trans_x, &
         trans_y=conf%trans_y, nobs=nobs, nrhs=Nrhs, nlhs=nlhs, &
-        nconst_add=Nconst_add, status=lstatus)
+        nconst_add=Nconst_add, weights=weights, status=lstatus)
     if (lstatus /= NF_STATUS_OK) goto 100
 
     ! --- Split sample ---
@@ -2544,13 +2587,7 @@ subroutine pcr_cv_mse (conf, X, Y, test_ifrom, Ntest, mse_ncomp, mse_weights, &
 
     ! --- Pre-compute effective weights ---
 
-    ! Normalize weights in training sample
-    if (present(weights)) then
-        weights_train(:) = weights_train / sum(weights_train)
-        weights_train(:) = sqrt(weights_train)
-    end if
-
-    ! Compute square root once since that's what will be neded below.
+    ! Compute square root once since that's what will be needed below.
     ! Do NOT normalize weights, this will be done in caller routine, taking
     ! into account potentially different test sample sizes.
     weights_test(:) = sqrt(weights_test)
@@ -2559,14 +2596,16 @@ subroutine pcr_cv_mse (conf, X, Y, test_ifrom, Ntest, mse_ncomp, mse_weights, &
 
     allocate (Xp(Ntrain,Nrhs))
     allocate (shift_x(Nrhs), scale_x(Nrhs))
+    ! Fit the same preprocessing as the final model, using training data only.
     call transform_regressors (X_train, Xp, trans=.false., &
-        center=.true., scale=.true., shift_x=shift_x, &
-        scale_x=scale_x, drop_na=.false., status=lstatus)
+        center=conf%center, scale=conf%scale, shift_x=shift_x, &
+        scale_x=scale_x, drop_na=.false., weights=weights_train, status=lstatus)
     if (lstatus /= NF_STATUS_OK) goto 100
 
     if (present(weights)) then
+        ! Keep raw weights until their moments and positive total are checked.
+        weights_train(:) = sqrt(weights_train / sum(weights_train))
         do i = 1, Nrhs
-            ! Sqrt already applied to weights for training sample!
             Xp(:,i) = Xp(:,i) * weights_train
         end do
     end if
@@ -2591,10 +2630,10 @@ subroutine pcr_cv_mse (conf, X, Y, test_ifrom, Ntest, mse_ncomp, mse_weights, &
     do Ncomp = ncomp_min, ncomp_max
         i = Ncomp - ncomp_min + 1
 
-        ! Run PCR on training sample given fixed number of PCs
+        ! Use the same centering for Y as for the training regressors.
         call pcr (Y_train, scores(:,1:Ncomp), sval(1:Ncomp), loadings(:,1:Ncomp), &
             coefs, shift_x=shift_x, scale_x=scale_x, &
-            add_intercept=conf%add_intercept, intercept=intercept, &
+            add_intercept=conf%add_intercept, center=conf%center, intercept=intercept, &
             weights_sqrt=weights_train, status=lstatus)
         if (lstatus /= NF_STATUS_OK) goto 100
 
@@ -2642,6 +2681,7 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
     real (PREC) :: ssr, mse_lhs, intercept, weights_lhs, s
     real (PREC), dimension(:,:), allocatable :: X_test, X_train, Y_test, Y_train
     real (PREC), dimension(:,:), allocatable :: X_train_T, X_test_T, X_lhs_T
+    real (PREC), dimension(:,:), allocatable :: xp_lhs
     real (PREC), dimension(:), allocatable :: W_test_lhs, W_train_lhs
     real (PREC), dimension(:), allocatable :: Y_train_pack, Y_test_pack
     real (PREC), dimension(:), allocatable :: weights_train, weights_test
@@ -2682,7 +2722,7 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
 
     call get_dims (X, Y, add_intercept=lconf%add_intercept, trans_x=lconf%trans_x, &
         trans_y=lconf%trans_y, nobs=nobs, nrhs=Nrhs, nlhs=nlhs, &
-        nconst_add=Nconst_add, status=lstatus)
+        nconst_add=Nconst_add, weights=weights, status=lstatus)
     if (lstatus /= NF_STATUS_OK) goto 100
 
     ! PC range to process
@@ -2728,23 +2768,26 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
         allocate (sval_all(Ncomp_max))
         allocate (shift_x_all(Nrhs), scale_x_all(Nrhs))
 
-        ! Apply weights to training sample, use X_LHS_T as temporary storage
-        ! for non-transposed, weighted X_train
-        allocate (X_lhs_T, source=X_train)
+        allocate (X_lhs_T(Ntrain,Nrhs))
+        ! Validate raw training weights before normalizing them.
+        call transform_regressors (X_train, X_lhs_T, trans=.false., &
+            center=conf%center, scale=conf%scale, shift_x=shift_x_all, &
+            scale_x=scale_x_all, drop_na=.false., weights=weights_train, &
+            status=lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+
         if (has_weights) then
             s = sum(weights_train)
             allocate (W_train_all, source=weights_train)
-            W_train_all(:) = W_train_all / s
-            W_train_all(:) = sqrt(W_train_all)
+            W_train_all(:) = sqrt(W_train_all / s)
             do i = 1, Nrhs
                 X_lhs_T(:,i) = X_lhs_T(:,i) * W_train_all
             end do
         end if
 
-        call pca (X_lhs_T, center=.true., scale=.true., &
+        call pca (X_lhs_T, center=.false., scale=.false., &
             trans_x=.false., scores=scores_all, sval=sval_all, &
-            loadings=loadings_all, shift_x=shift_x_all, scale_x=scale_x_all, &
-            status=lstatus)
+            loadings=loadings_all, status=lstatus)
 
         deallocate (X_lhs_T)
 
@@ -2767,6 +2810,7 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
     !$omp shared (scores_all,loadings_all,sval_all,shift_x_all,scale_x_all) &
     !$omp shared (W_train_all,mse_weights,mse_ncomp) &
     !$omp private (coefs,resid,X_lhs_T,Y_train_pack,Y_test_pack,W_train_lhs) &
+    !$omp private (xp_lhs) &
     !$omp private (W_test_lhs,ptr_X_test_lhs_T,ptr_Y_train_lhs,ptr_Y_test_lhs) &
     !$omp private (ptr_W_train_lhs,shift_x,scale_x,scores,loadings,sval) &
     !$omp private (i,j,Ntrain_lhs,Ntest_lhs,ncomp_max_lhs,lstatus,s,shp) &
@@ -2819,18 +2863,29 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
             call copy (Y_train(:,j), Y_train_pack(1:Ntrain_lhs), mask_train(:,j))
             ptr_Y_train_lhs => Y_train_pack(1:Ntrain_lhs)
 
+            ! Each response can have a different training sample and weighted mean.
+            nullify (ptr_W_train_lhs)
             if (has_weights) then
                 call copy (weights_train, W_train_lhs(1:Ntrain_lhs), mask_train(:,j))
-
                 s = sum(W_train_lhs(1:Ntrain_lhs))
-                W_train_lhs(1:Ntrain_lhs) = W_train_lhs(1:Ntrain_lhs) / s
-                W_train_lhs(1:Ntrain_lhs) = sqrt(W_train_lhs(1:Ntrain_lhs))
-
                 ptr_W_train_lhs => W_train_lhs(1:Ntrain_lhs)
+            end if
 
-                ! Computed weighted X
-                do i = 1, Ntrain_lhs
-                    X_lhs_T(:,i) = X_lhs_T(:,i) * W_train_lhs(i)
+            call cond_alloc (xp_lhs, [Ntrain_lhs, Nrhs])
+            call transform_regressors (X_lhs_T(:,1:Ntrain_lhs), xp_lhs, &
+                trans=.true., center=conf%center, scale=conf%scale, &
+                shift_x=shift_x, scale_x=scale_x, drop_na=.false., &
+                weights=ptr_W_train_lhs, status=lstatus)
+            if (lstatus /= NF_STATUS_OK) then
+                status_code = lstatus
+                cycle loop_lhs
+            end if
+
+            if (has_weights) then
+                ! Weight the transformed data, retaining moments in original units.
+                W_train_lhs(1:Ntrain_lhs) = sqrt(W_train_lhs(1:Ntrain_lhs) / s)
+                do i = 1, Nrhs
+                    xp_lhs(:,i) = xp_lhs(:,i) * W_train_lhs(1:Ntrain_lhs)
                 end do
             end if
 
@@ -2844,10 +2899,10 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
             shp(2) = ncomp_max_lhs
             call cond_alloc (loadings, shp(1:2))
 
-            ! Perform principal component analysis
-            call pca (X_lhs_T(:,1:Ntrain_lhs), center=.true., scale=.true., &
-                trans_x=.true., scores=scores, sval=sval(1:ncomp_max_lhs), &
-                loadings=loadings, shift_x=shift_x, scale_x=scale_x, status=lstatus)
+            ! Do not recenter or rescale after applying least-squares weights.
+            call pca (xp_lhs, center=.false., scale=.false., &
+                trans_x=.false., scores=scores, sval=sval(1:ncomp_max_lhs), &
+                loadings=loadings, status=lstatus)
             if (.not. (NF_STATUS_OK .in. lstatus)) then
                 status_code = lstatus
                 cycle loop_lhs
@@ -2861,7 +2916,8 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
         else
             ! Use precomputed PCA data derived from all RHS observations
             ptr_Y_train_lhs => Y_train(:,j)
-            ptr_W_train_lhs => W_train_all
+            nullify (ptr_W_train_lhs)
+            if (has_weights) ptr_W_train_lhs => W_train_all
 
             ptr_scores => scores_all
             ptr_loadings => loadings_all
@@ -2915,11 +2971,12 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
         do Ncomp = ncomp_min, ncomp_max_lhs
             i = Ncomp - ncomp_min + 1
 
-            ! Run PCR on training sample given fixed number of PCs
+            ! Match Y centering to the preprocessing of this training sample.
             call pcr (ptr_Y_train_lhs, ptr_scores(:,1:Ncomp), ptr_sval(1:Ncomp), &
                 ptr_loadings(:,1:Ncomp), coefs, shift_x=ptr_shift_x, &
                 scale_x=ptr_scale_x, add_intercept=conf%add_intercept, &
-                intercept=intercept, weights_sqrt=ptr_W_train_lhs, status=lstatus)
+                center=conf%center, intercept=intercept, &
+                weights_sqrt=ptr_W_train_lhs, status=lstatus)
             if (lstatus /= NF_STATUS_OK) then
                 status_code = lstatus
                 cycle loop_lhs
@@ -2936,8 +2993,7 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
             ! Compute residuals in place
             !   resid = (yhat - y)
             resid(1:Ntest_lhs) = resid(1:Ntest_lhs) - ptr_Y_test_lhs
-            ! Weighted residuals
-            ! TODO: Should be weighted by square root of weights?
+            ! Squaring these residuals gives the weighted sum of squared errors.
             resid(1:Ntest_lhs) = resid(1:Ntest_lhs) * W_test_lhs(1:Ntest_lhs)
 
             ! Compute Euclidean norm
@@ -2960,6 +3016,7 @@ subroutine pcr_cv_mse_mask (conf, X, Y, mask, test_ifrom, Ntest, mse_ncomp, &
 
     if (allocated(scores)) deallocate (scores)
     if (allocated(loadings)) deallocate (loadings)
+    if (allocated(xp_lhs)) deallocate (xp_lhs)
 
     !$omp end parallel
 

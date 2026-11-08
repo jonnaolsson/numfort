@@ -4,6 +4,8 @@ program test_stats_lm
     !*  Unit tests for OLS estimation routines in numfort_stats_lm module.
 
     use, intrinsic :: iso_fortran_env
+    use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan, &
+        ieee_positive_inf, ieee_negative_inf
 
     use numfort_common
     use numfort_common_testing
@@ -44,6 +46,10 @@ subroutine test_all ()
     call test_pcr_masked ()
     call test_pcr_masked_const ()
     call test_pcr_cv_masked ()
+    call test_transform_weights ()
+    call test_pcr_weighted_reference ()
+    call test_pcr_preprocessing ()
+    call test_pcr_invalid_weights ()
 
 end subroutine
 
@@ -1747,6 +1753,7 @@ subroutine test_pcr_ols_equiv_2d ()
     real (PREC), dimension(:,:), allocatable :: X, Y
     real (PREC), dimension(:,:), allocatable :: coefs_true, coefs_ols, coefs_pcr
     real (PREC), dimension(:), allocatable ::  intercept_true, intercept_ols, intercept_pcr
+    real (PREC), dimension(:), allocatable :: weights
     integer :: Nobs, Nrhs, Nlhs, Nconst
     type (status_t) :: status
     logical :: values_ok
@@ -1765,11 +1772,24 @@ subroutine test_pcr_ols_equiv_2d ()
     status = NF_STATUS_OK
     call pcr (X=X, Y=Y, res=res_pcr, status=status)
 
-    values_ok = all_close (res_pcr%intercept, res_ols%intercept, atol=atol, rtol=rtol)
+    values_ok = all_close (res_pcr%intercept_multi, res_ols%intercept_multi, &
+        atol=atol, rtol=rtol)
     if (.not. (status == NF_STATUS_OK .and. values_ok)) &
         error stop "Constant only, RES present"
 
-    deallocate (X, Y)
+    allocate (weights(10))
+    call random_number (weights)
+
+    call ols (X=X, Y=Y, weights=weights, res=res_ols, status=status)
+    status = NF_STATUS_OK
+    call pcr (X=X, Y=Y, weights=weights, res=res_pcr, status=status)
+
+    values_ok = all_close (res_pcr%intercept_multi, res_ols%intercept_multi, &
+        atol=atol, rtol=rtol)
+    if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+        error stop "Constant only, weighted, RES present"
+
+    deallocate (X, Y, weights)
 
     ! --- Test for various number of RHS vars ---
 
@@ -1780,6 +1800,9 @@ subroutine test_pcr_ols_equiv_2d ()
         call random_sample (nrhs=Nrhs, nobs=Nobs, Nlhs=Nlhs, X=X, y=y, &
             coefs=coefs_true, intercept=intercept_true, add_intercept=.true., &
             var_error=0.1_PREC, status=status)
+
+        allocate (weights(Nobs))
+        call random_number (weights)
 
         call cond_alloc (intercept_ols, Nlhs)
         call cond_alloc (intercept_pcr, Nlhs)
@@ -1794,9 +1817,26 @@ subroutine test_pcr_ols_equiv_2d ()
 
         values_ok = all_close (res_pcr%intercept_multi, res_ols%intercept_multi, &
                 atol=atol, rtol=rtol) &
-            .and. all_close (res_pcr%coefs_multi, res_ols%coefs_multi, atol=atol, rtol=rtol)
+            .and. all_close (res_pcr%coefs_multi, res_ols%coefs_multi, &
+                atol=atol, rtol=rtol)
         if (.not. (status == NF_STATUS_OK .and. values_ok)) &
             error stop "PCR disagrees with OLS through the result object"
+
+        ! Test with weights
+        call lm_result_reset (res_ols)
+        call ols (X=X, y=y, weights=weights, res=res_ols, status=status)
+        status = NF_STATUS_UNDEFINED
+        call lm_result_reset (res_pcr)
+        call pcr (conf_pcr, X=X, y=y, weights=weights, res=res_pcr, status=status)
+
+        values_ok = all_close (res_pcr%intercept_multi, res_ols%intercept_multi, &
+                atol=atol, rtol=rtol) &
+            .and. all_close (res_pcr%coefs_multi, res_ols%coefs_multi, &
+                atol=atol, rtol=rtol)
+        if (.not. (status == NF_STATUS_OK .and. values_ok)) &
+            error stop "Weighted PCR disagrees with OLS through the result object"
+
+        deallocate (weights)
 
         ! Check with COEFS, INTERCEPT arguments
         call cond_alloc (coefs_ols, [Nrhs,Nlhs])
@@ -2734,5 +2774,394 @@ subroutine test_pcr_cv_masked ()
     if (.not. (values_ok .and. status_mask == NF_STATUS_OK)) &
         error stop "By LHS, Full mask, weighted, NLHS > NFOLDS"
 end subroutine
+
+
+subroutine test_transform_weights ()
+    !* Check weighted moments and invalid inputs for both helper overloads.
+    real (PREC) :: x(4,2), xout(4,2), xinplace(4,2), weights(4)
+    real (PREC) :: means(2), scales(2), expected(4,2), bad_weights(4,5)
+    type (status_t) :: status
+    integer :: i
+
+    ! Nonuniform weights change the moments; a zero weight is valid.
+    ! The second column is affine in the first, keeping both references exact.
+    x(:,1) = [0.0_PREC, 1.0_PREC, 2.0_PREC, 6.0_PREC]
+    x(:,2) = 3.0_PREC * x(:,1) + 1.0_PREC
+    weights = [1.0_PREC, 0.0_PREC, 2.0_PREC, 1.0_PREC]
+    ! Weighted population moments divide by sum(weights), without a DOF correction.
+    means = [2.5_PREC, 8.5_PREC]
+    scales = sqrt(4.75_PREC) * [1.0_PREC, 3.0_PREC]
+    do i = 1, 2
+        expected(:,i) = (x(:,i) - means(i)) / scales(i)
+    end do
+
+    ! Check the transformed data and the moments returned to callers.
+    call transform_regressors (x, xout, center=.true., scale=.true., &
+        weights=weights, mean_x=means, std_x=scales, status=status)
+    if (status /= NF_STATUS_OK) error stop "Weighted transform status"
+    if (.not. all_close (xout, expected, atol=1.0e-12_PREC)) &
+        error stop "Weighted transform moments"
+    if (.not. all_close (means, [2.5_PREC, 8.5_PREC], atol=1.0e-12_PREC)) &
+        error stop "Weighted means"
+    if (.not. all_close (scales, sqrt(4.75_PREC) * [1.0_PREC, 3.0_PREC], &
+        atol=1.0e-12_PREC)) error stop "Weighted standard deviations"
+
+    ! Multiplying every weight by the same constant must not change the transform.
+    xinplace = x
+    call transform_regressors (xinplace, center=.true., scale=.true., &
+        weights=7.0_PREC * weights, status=status)
+    if (status /= NF_STATUS_OK) error stop "In-place weighted transform status"
+    if (.not. all_close (xinplace, expected, atol=1.0e-12_PREC)) &
+        error stop "In-place weighted transform"
+    ! Changing input orientation must preserve observation weights and moments.
+    call transform_regressors (transpose(x), xout, trans=.true., &
+        center=.true., scale=.true., weights=weights, status=status)
+    if (status /= NF_STATUS_OK) error stop "Transposed weighted transform status"
+    if (.not. all_close (xout, expected, atol=1.0e-12_PREC)) &
+        error stop "Transposed weighted transform"
+
+    ! Each column isolates an invalid case. The negative case has a positive sum.
+    bad_weights = 1.0_PREC
+    bad_weights(2,1) = -1.0_PREC
+    bad_weights(2,2) = ieee_value (0.0_PREC, ieee_quiet_nan)
+    bad_weights(2,3) = ieee_value (0.0_PREC, ieee_positive_inf)
+    bad_weights(2,4) = ieee_value (0.0_PREC, ieee_negative_inf)
+    bad_weights(:,5) = 0.0_PREC
+    do i = 1, size(bad_weights, 2)
+        call transform_regressors (x, xout, center=.true., scale=.true., &
+            weights=bad_weights(:,i), status=status)
+        if (status /= NF_STATUS_INVALID_ARG) error stop "Invalid transform weights"
+        xinplace = x
+        call transform_regressors (xinplace, center=.true., scale=.true., &
+            weights=bad_weights(:,i), status=status)
+        if (status /= NF_STATUS_INVALID_ARG) error stop "Invalid in-place weights"
+        ! In-place validation must finish before changing the regressor matrix.
+        if (any(xinplace /= x)) error stop "Invalid weights changed input data"
+    end do
+
+    ! Reject weight vectors whose length differs from the observation count.
+    call transform_regressors (x, xout, weights=weights(1:3), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) error stop "Transform weight dimensions"
+    xinplace = x
+    call transform_regressors (xinplace, weights=weights(1:3), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) error stop "In-place weight dimensions"
+end subroutine
+
+
+subroutine test_pcr_weighted_reference ()
+    !* Compare ordinary and partially masked PCR with analytical weighted LS.
+    real (PREC) :: x(6,1), y(6,2), xzero(6,0), weights(6), noise(6)
+    real (PREC) :: coefs(1,2), intercept(2), b(1), a, mean_x, mean_y
+    real (PREC) :: ref_b, ref_a, w(6), rmse
+    logical :: mask(6,2)
+    type (lm_config) :: conf
+    type (lm_result) :: res
+    type (status_t) :: status
+    integer :: j, imask, ncomp
+
+    x(:,1) = [1, 2, 3, 4, 5, 6]
+    weights = [1, 2, 3, 4, 5, 6]
+    ! Fixed residuals make the weighted fit differ from the unweighted fit.
+    noise = [0.5_PREC, -0.2_PREC, 0.1_PREC, -0.7_PREC, 0.3_PREC, 0.4_PREC]
+    y(:,1) = 3.0_PREC + 2.0_PREC * x(:,1) + noise
+    y(:,2) = -1.0_PREC + 4.0_PREC * x(:,1) - 2.0_PREC * noise
+    ! With one regressor, keeping its sole component must reproduce WLS.
+    conf = lm_config(ncomp=1)
+
+    do imask = 0, 1
+        mask = .true.
+        ! Drop the largest-weight observation for one response; retain the other.
+        if (imask == 1) mask(6,1) = .false.
+        if (imask == 0) then
+            call pcr (conf, x, y, coefs=coefs, intercept=intercept, &
+                weights=weights, res=res, status=status)
+        else
+            call pcr_by_lhs (conf, x, y, mask=mask, weights=weights, &
+                coefs=coefs, intercept=intercept, res=res, status=status)
+        end if
+        if (status /= NF_STATUS_OK) error stop "Reference PCR status"
+        do j = 1, 2
+            ! The closed-form WLS reference is independent of numfort's OLS.
+            ! Zeroing excluded weights applies the response mask to every moment.
+            w = merge(weights, 0.0_PREC, mask(:,j))
+            mean_x = sum(w * x(:,1)) / sum(w)
+            mean_y = sum(w * y(:,j)) / sum(w)
+            ref_b = sum(w * (x(:,1) - mean_x) * (y(:,j) - mean_y)) &
+                / sum(w * (x(:,1) - mean_x)**2)
+            ref_a = mean_y - ref_b * mean_x
+            if (abs(coefs(1,j) - ref_b) > 1.0e-12_PREC &
+                .or. abs(intercept(j) - ref_a) > 1.0e-12_PREC) &
+                error stop "PCR disagrees with analytical WLS"
+            ! Result objects must agree with the separate coefficient outputs.
+            if (abs(res%coefs_multi(1,j) - ref_b) > 1.0e-12_PREC &
+                .or. abs(res%intercept_multi(j) - ref_a) > 1.0e-12_PREC) &
+                error stop "PCR result disagrees with analytical WLS"
+            if (imask == 0) then
+                ! The 1D wrapper must use the same weighted centering as 2D PCR.
+                call pcr (conf, x, y(:,j), coefs=b, intercept=a, &
+                    weights=weights, status=status)
+                if (status /= NF_STATUS_OK) error stop "1D reference PCR status"
+                if (abs(b(1) - ref_b) > 1.0e-12_PREC &
+                    .or. abs(a - ref_a) > 1.0e-12_PREC) &
+                    error stop "1D PCR disagrees with analytical WLS"
+            end if
+        end do
+    end do
+
+    ! With no regressors, the fitted intercept is the weighted response mean.
+    ! This checks the branch that skips PCA entirely.
+    conf%ncomp = 0
+    call pcr (conf, xzero, y, weights=weights, res=res, status=status)
+    if (status /= NF_STATUS_OK) error stop "Constant-only reference PCR status"
+    if (.not. all_close (res%intercept_multi, matmul(weights, y) / sum(weights), &
+        atol=1.0e-12_PREC)) error stop "Constant-only weighted means"
+    call pcr (conf, xzero, y(:,1), weights=weights, res=res, status=status)
+    if (status /= NF_STATUS_OK) error stop "1D constant-only reference PCR status"
+    if (abs(res%intercept - sum(weights * y(:,1)) / sum(weights)) > 1.0e-12_PREC) &
+        error stop "1D constant-only weighted mean"
+
+    ! Exact linear data must also predict perfectly across masked CV folds.
+    ! Retain the partial mask above to exercise response-specific training samples.
+    y(:,1) = 3.0_PREC + 2.0_PREC * x(:,1)
+    y(:,2) = y(:,1)
+    conf = lm_config(cv_n=3)
+    call pcr_cv (conf, x, y, ncomp, weights=weights, mask=mask, &
+        rmse=rmse, status=status)
+    if (status /= NF_STATUS_OK) error stop "Partially masked reference CV status"
+    if (ncomp /= 1 .or. rmse > 1.0e-12_PREC) &
+        error stop "Partially masked CV of exact linear data"
+end subroutine
+
+
+subroutine test_pcr_preprocessing ()
+    !* Check preprocessing options against separate fits and explicit CV folds.
+    integer, parameter :: Nobs = 12, Nrhs = 2, Nlhs = 4
+    real (PREC) :: x(Nobs,Nrhs), y(Nobs,Nlhs), xp(Nobs,Nrhs), yp(Nobs)
+    real (PREC) :: xt(Nrhs,Nobs), yt(Nlhs,Nobs)
+    real (PREC), target :: weights(Nobs), wp(Nobs)
+    real (PREC), pointer, contiguous :: ptr_weights(:), ptr_wp(:)
+    logical, target :: mask(Nobs,Nlhs)
+    logical :: mask_t(Nlhs,Nobs)
+    logical, pointer, contiguous :: ptr_mask(:,:)
+    logical :: train(Nobs)
+    real (PREC) :: coefs(Nrhs,Nlhs), intercept(Nlhs), b(Nrhs), a
+    real (PREC) :: coefs_t(Nlhs,Nrhs), intercept_t(Nlhs), residual(Nobs)
+    real (PREC) :: ssr(0:Nrhs,Nlhs), total_weight(Nlhs), ref_rmse(Nlhs)
+    real (PREC) :: rmse_lhs(Nlhs), rmse, pooled_rmse
+    integer :: ncomp, ncomp_lhs(Nlhs), ref_ncomp(Nlhs), pooled_ncomp
+    integer :: i, j, k, h, n, ifrom, ito, icenter, iscale, iw, imask, nfolds
+    integer :: requested(Nlhs)
+    type (lm_config) :: conf, ref_conf, trans_conf
+    type (status_t) :: status
+
+    ! Different predictor scales make scaling relevant when only one PC is kept.
+    do i = 1, Nobs
+        x(i,1) = real(i, PREC)
+        x(i,2) = 10.0_PREC * real(mod(i * i, 7), PREC)
+    end do
+    ! Deterministic nonlinear residuals give CV nonzero prediction errors.
+    do j = 1, Nlhs
+        y(:,j) = real(j, PREC) * x(:,1) - 0.2_PREC * x(:,2) &
+            + sin(x(:,1) * real(j, PREC)) + 3.0_PREC
+    end do
+    ! GCC PR125998 affects TRANSPOSE expressions passed to CONTIGUOUS,TARGET
+    ! dummies. Our GNU 13-16 CI builds supplied the original shape, e.g. (12,2)
+    ! instead of (2,12), with incorrect strides; PCR rejected the arguments.
+    ! A standalone descriptor probe reproduced this without calling numfort.
+    ! Materialize X, Y, and the mask to retain transposed-input test coverage.
+    ! https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125998
+    xt = transpose(x)
+    yt = transpose(y)
+    ! Exercise zero, truncated, and full component counts across responses.
+    requested = [0, 1, 2, 1]
+
+    do iw = 0, 1
+        weights = 1.0_PREC
+        ! Null pointers omit optional weights; ones still weight the reference SSE.
+        nullify (ptr_weights, ptr_wp)
+        if (iw == 1) then
+            weights = x(:,1)
+            weights(2) = 0.0_PREC
+            ptr_weights => weights
+        end if
+        do icenter = 0, 1
+            do iscale = 0, 1
+                ! The uncentered case fits through the origin; vary scaling separately.
+                conf = lm_config(center=icenter == 1, scale=iscale == 1, &
+                    add_intercept=icenter == 1)
+                do imask = 0, 2
+                    ! Compare omitted, all-true, and response-specific masks.
+                    mask = .true.
+                    nullify (ptr_mask)
+                    if (imask > 0) ptr_mask => mask
+                    if (imask == 2) then
+                        ! Alternate partial and full samples to exercise both paths.
+                        mask([2, 9],1) = .false.
+                        mask([4, 11],3) = .false.
+                    end if
+                    call pcr_by_lhs (conf, x, y, mask=ptr_mask, &
+                        weights=ptr_weights, ncomp=requested, coefs=coefs, &
+                        intercept=intercept, status=status)
+                    if (status /= NF_STATUS_OK) error stop "By-LHS options status"
+                    ! Explicitly pack each sample and fit it with ordinary PCR.
+                    do j = 1, Nlhs
+                        n = count(mask(:,j))
+                        do i = 1, Nrhs
+                            xp(1:n,i) = pack(x(:,i), mask(:,j))
+                        end do
+                        yp(1:n) = pack(y(:,j), mask(:,j))
+                        wp(1:n) = pack(weights, mask(:,j))
+                        if (iw == 1) ptr_wp => wp(1:n)
+                        ref_conf = conf
+                        ref_conf%ncomp = requested(j)
+                        call pcr (ref_conf, xp(1:n,:), yp(1:n), coefs=b, &
+                            intercept=a, weights=ptr_wp, status=status)
+                        if (status /= NF_STATUS_OK) error stop "Packed options status"
+                        if (.not. all_close (coefs(:,j), b, atol=1.0e-11_PREC) &
+                            .or. abs(intercept(j) - a) > 1.0e-11_PREC) &
+                            error stop "By-LHS options disagree with packed PCR"
+                    end do
+
+                    ! Transpose both inputs and the coefficient output for the same fit.
+                    trans_conf = conf
+                    trans_conf%trans_x = .true.
+                    trans_conf%trans_y = .true.
+                    trans_conf%trans_coefs = .true.
+                    ! Use a named mask array for the GCC workaround described above.
+                    mask_t = transpose(mask)
+                    call pcr_by_lhs (trans_conf, xt, yt, &
+                        mask=mask_t, weights=ptr_weights, ncomp=requested, &
+                        coefs=coefs_t, intercept=intercept_t, status=status)
+                    if (status /= NF_STATUS_OK) error stop "Transposed by-LHS status"
+                    if (.not. all_close (transpose(coefs_t), coefs, &
+                        atol=1.0e-11_PREC) &
+                        .or. .not. all_close (intercept_t, intercept, &
+                        atol=1.0e-11_PREC)) error stop "Transposed by-LHS options"
+
+                    ! Four responses exceed three folds, but not six folds:
+                    ! exercise parallelization over responses and over folds.
+                    do nfolds = 3, 6, 3
+                        conf%cv_n = nfolds
+                        ssr = 0.0_PREC
+                        do j = 1, Nlhs
+                            total_weight(j) = sum(weights, mask=mask(:,j))
+                            do h = 1, nfolds
+                                ! Match the default consecutive folds.
+                                ifrom = (h - 1) * (Nobs / nfolds) + 1
+                                ito = h * (Nobs / nfolds)
+                                ! Exclude held-out and missing data from training.
+                                train = mask(:,j)
+                                train(ifrom:ito) = .false.
+                                n = count(train)
+                                do i = 1, Nrhs
+                                    xp(1:n,i) = pack(x(:,i), train)
+                                end do
+                                yp(1:n) = pack(y(:,j), train)
+                                wp(1:n) = pack(weights, train)
+                                if (iw == 1) ptr_wp => wp(1:n)
+                                ! Build the error curve, including zero PCs.
+                                do k = 0, Nrhs
+                                    ref_conf = conf
+                                    ref_conf%ncomp = k
+                                    call pcr (ref_conf, xp(1:n,:), yp(1:n), &
+                                        coefs=b, intercept=a, weights=ptr_wp, &
+                                        status=status)
+                                    if (status /= NF_STATUS_OK) &
+                                        error stop "Explicit CV fit status"
+                                    ! Score only unmasked held-out observations.
+                                    residual = matmul(x, b) + a - y(:,j)
+                                    ssr(k,j) = ssr(k,j) &
+                                        + sum(weights(ifrom:ito) &
+                                        * residual(ifrom:ito)**2, &
+                                        mask=mask(ifrom:ito,j))
+                                end do
+                            end do
+                        end do
+                        ! Convert one-based MINLOC positions to zero-based PC counts.
+                        ref_ncomp = minloc(ssr, dim=1) - 1
+                        ref_rmse = sqrt(minval(ssr, dim=1) / total_weight)
+                        ! Pool raw weighted errors, so larger samples carry more weight.
+                        pooled_ncomp = minloc(sum(ssr, dim=2), dim=1) - 1
+                        pooled_rmse = sqrt(minval(sum(ssr, dim=2)) &
+                            / sum(total_weight))
+
+                        ! Check the selected PC count and its prediction error.
+                        call pcr_cv (conf, x, y, ncomp_lhs, weights=ptr_weights, &
+                            mask=ptr_mask, rmse=rmse_lhs, status=status)
+                        if (status /= NF_STATUS_OK) error stop "Separate CV status"
+                        if (any(ncomp_lhs /= ref_ncomp) &
+                            .or. .not. all_close (rmse_lhs, ref_rmse, &
+                            atol=1.0e-11_PREC)) error stop "Separate CV fold reference"
+                        call pcr_cv (conf, x, y, ncomp, weights=ptr_weights, &
+                            mask=ptr_mask, rmse=rmse, status=status)
+                        if (status /= NF_STATUS_OK) error stop "Pooled CV status"
+                        if (ncomp /= pooled_ncomp &
+                            .or. abs(rmse - pooled_rmse) > 1.0e-11_PREC) &
+                            error stop "Pooled CV fold reference"
+                    end do
+                end do
+            end do
+        end do
+    end do
+end subroutine
+
+
+subroutine test_pcr_invalid_weights ()
+    !* Reject bad weights before square roots, including zero-weight subsets.
+    real (PREC) :: x(6,1), y(6,4), weights(6), bad_weights(6,4)
+    real (PREC) :: coefs(1,4), intercept(4)
+    logical :: mask(6,4)
+    type (lm_config) :: conf
+    type (lm_result) :: res
+    type (status_t) :: status
+    integer :: i, j, ncomp, ncomp_lhs(4)
+
+    x(:,1) = [1, 2, 3, 4, 5, 6]
+    do j = 1, 4
+        y(:,j) = 3.0_PREC + 2.0_PREC * x(:,1)
+    end do
+    mask = .true.
+    conf = lm_config(ncomp=1, cv_n=3)
+    ! Valid data isolates weight validation in each public regression entry point.
+    ! The negative case retains a positive total; the others test NaN, Inf, and zero.
+    bad_weights = 1.0_PREC
+    bad_weights(2,1) = -1.0_PREC
+    bad_weights(2,2) = ieee_value (0.0_PREC, ieee_quiet_nan)
+    bad_weights(2,3) = ieee_value (0.0_PREC, ieee_positive_inf)
+    bad_weights(:,4) = 0.0_PREC
+    do i = 1, size(bad_weights, 2)
+        call pcr (conf, x, y, weights=bad_weights(:,i), res=res, status=status)
+        if (status /= NF_STATUS_INVALID_ARG) error stop "Invalid PCR weights"
+        call pcr_by_lhs (conf, x, y, weights=bad_weights(:,i), res=res, &
+            status=status)
+        if (status /= NF_STATUS_INVALID_ARG) error stop "Invalid by-LHS weights"
+        call pcr_cv (conf, x, y, ncomp, weights=bad_weights(:,i), status=status)
+        if (status /= NF_STATUS_INVALID_ARG) error stop "Invalid CV weights"
+        call pcr_cv (conf, x, y, ncomp_lhs, mask=mask, &
+            weights=bad_weights(:,i), status=status)
+        if (status /= NF_STATUS_INVALID_ARG) error stop "Invalid separate CV weights"
+    end do
+
+    ! The total is positive, but the first fold has no positive training weights.
+    ! Later folds are valid, so their success must not erase the earlier failure.
+    weights = [1.0_PREC, 1.0_PREC, 0.0_PREC, 0.0_PREC, 0.0_PREC, 0.0_PREC]
+    ! CV combines status flags from successful and unsuccessful folds.
+    call pcr_cv (conf, x, y, ncomp, weights=weights, status=status)
+    if (.not. (NF_STATUS_INVALID_ARG .in. status)) &
+        error stop "Zero-weight CV training fold"
+    call pcr_cv (conf, x, y, ncomp_lhs, weights=weights, mask=mask, status=status)
+    if (.not. (NF_STATUS_INVALID_ARG .in. status)) &
+        error stop "Zero-weight masked training fold"
+
+    ! Remove all positive weights from one response while keeping the others valid.
+    ! Both masked APIs must reject that subset before storing results.
+    mask(1:2,1) = .false.
+    call pcr_by_lhs (conf, x, y, mask=mask, weights=weights, res=res, status=status)
+    if (status /= NF_STATUS_INVALID_ARG) error stop "Zero-weight by-LHS subset"
+    call pcr (conf, x, y, mask, coefs=coefs, intercept=intercept, &
+        weights=weights, status=status)
+    if (status /= NF_STATUS_INVALID_ARG) error stop "Zero-weight masked PCR subset"
+end subroutine
+
 
 end

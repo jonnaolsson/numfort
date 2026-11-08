@@ -2,7 +2,7 @@
 
 pure subroutine transform_regr (X, xout, add_intercept, trans, &
         center, scale, drop_const, tol_const, drop_na, skip_const, mean_x, std_x, &
-        shift_x, scale_x, ikeep, nkeep, idrop, ndrop, status)
+        shift_x, scale_x, ikeep, nkeep, idrop, ndrop, weights, status)
     !*  TRANSFORM_REGRESSORS processes the regressor matrix to obtain
     !   the data expected by estimation routines.
     real (PREC), intent(in), dimension(:,:), contiguous :: X
@@ -43,6 +43,8 @@ pure subroutine transform_regr (X, xout, add_intercept, trans, &
         !*  Optional array of variable indices that were dropped from the model.
     integer, intent(out), optional :: ndrop
         !*  Number of variables that were dropped from the model.
+    real (PREC), intent(in), dimension(:), contiguous, optional :: weights
+        !*  Finite, nonnegative moment weights with a positive total.
     type (status_t), intent(out), optional :: status
         !*  Exit code.
 
@@ -50,7 +52,7 @@ pure subroutine transform_regr (X, xout, add_intercept, trans, &
     logical :: ladd_intercept, ltrans, ldrop_const, lcenter, lscale, ldrop_na
     logical :: need_std, need_mean_only, lskip_const
     real (PREC) :: ltol_const
-    real (PREC), dimension(:), allocatable :: std_x_all, mean_x_all
+    real (PREC), dimension(:), allocatable :: std_x_all, mean_x_all, w_norm
     real (PREC), dimension(:), contiguous, pointer :: ptr_std_x, ptr_mean_x
     real (PREC), dimension(:), allocatable :: lstd_x
     logical, dimension(:), allocatable :: mask_vars
@@ -77,6 +79,22 @@ pure subroutine transform_regr (X, xout, add_intercept, trans, &
 
     call get_regressor_dims (X, ltrans, k, nobs)
 
+    if (present(weights)) then
+        call check_cond (size(weights) == nobs, NAME, &
+            "WEIGHTS: Non-conformable array", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        ! Check finiteness before comparisons or weighted moment calculations.
+        call check_cond (all(ieee_is_finite(weights)), NAME, &
+            "WEIGHTS: Values must be finite", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        call check_cond (all(weights >= 0.0_PREC), NAME, &
+            "WEIGHTS: Values must be nonnegative", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        call check_cond (sum(weights) > 0.0_PREC, NAME, &
+            "WEIGHTS: Sum must be positive", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+    end if
+
     ! Determine which, if any, moments are needed, and precompute those
     need_std = ldrop_const .or. lscale .or. present(std_x)
     need_mean_only = (lcenter .or. present(mean_x)) .and. .not. need_std
@@ -87,10 +105,42 @@ pure subroutine transform_regr (X, xout, add_intercept, trans, &
     if (need_std) then
         ! Compute std. dev., get mean for free.
         allocate (std_x_all(k), mean_x_all(k))
-        call std_impl (X, s=std_x_all, m=mean_x_all, dim=dim, dof=1)
+        if (present(weights)) then
+            allocate (w_norm(nobs))
+            w_norm(:) = weights / sum(weights)
+            if (dim == 1) then
+                do i = 1, k
+                    mean_x_all(i) = sum(w_norm * X(:, i))
+                    std_x_all(i) = &
+                        sqrt(sum(w_norm * (X(:, i) - mean_x_all(i))**2.0_PREC))
+                end do
+            else
+                do i = 1, k
+                    mean_x_all(i) = sum(w_norm * X(i, :))
+                    std_x_all(i) = &
+                        sqrt(sum(w_norm * (X(i, :) - mean_x_all(i))**2.0_PREC))
+                end do
+            end if
+        else
+            call std_impl (X, s=std_x_all, m=mean_x_all, dim=dim, dof=1)
+        end if
     else if (need_mean_only) then
         allocate (mean_x_all(k))
-        call mean_impl (X, m=mean_x_all, dim=dim)
+        if (present(weights)) then
+            allocate (w_norm(nobs))
+            w_norm(:) = weights / sum(weights)
+            if (dim == 1) then
+                do i = 1, k
+                    mean_x_all(i) = sum(w_norm * X(:, i))
+                end do
+            else
+                do i = 1, k
+                    mean_x_all(i) = sum(w_norm * X(i, :))
+                end do
+            end if
+        else
+            call mean_impl (X, m=mean_x_all, dim=dim)
+        end if
     end if
 
     ! --- Filter variables ---
@@ -209,7 +259,7 @@ end subroutine
 
 pure subroutine transform_regr_in_place (X, center, scale, drop_const, &
         tol_const, drop_na, skip_const, mean_x, std_x, shift_x, scale_x, ikeep, &
-        nkeep, idrop, ndrop, status)
+        nkeep, idrop, ndrop, weights, status)
     !*  TRANSFORM_REGRESSORS processes the regressor matrix to obtain
     !   the data expected by estimation routines.
     real (PREC), intent(inout), dimension(:,:), contiguous :: X
@@ -244,13 +294,15 @@ pure subroutine transform_regr_in_place (X, center, scale, drop_const, &
         !*  Optional array of variable indices that were dropped from the model.
     integer, intent(out), optional :: ndrop
         !*  Number of variables that were dropped from the model.
+    real (PREC), intent(in), dimension(:), contiguous, optional :: weights
+        !*  Finite, nonnegative moment weights with a positive total.
     type (status_t), intent(out), optional :: status
         !*  Exit code.
 
     integer :: Nobs, k, i, ik, lnkeep
     logical :: ldrop_const, lcenter, lscale, ldrop_na, lskip_const
     real (PREC) :: ltol_const
-    real (PREC), dimension(:), allocatable :: std_x_all, mean_x_all
+    real (PREC), dimension(:), allocatable :: std_x_all, mean_x_all, w_norm
     real (PREC), dimension(:), pointer, contiguous :: ptr_std_x, ptr_mean_x
     logical, dimension(:), allocatable :: mask_vars
     integer, dimension(:), pointer, contiguous :: ptr_ikeep
@@ -278,6 +330,22 @@ pure subroutine transform_regr_in_place (X, center, scale, drop_const, &
     Nobs = size(X, 1)
     k = size(X, 2)
 
+    if (present(weights)) then
+        call check_cond (size(weights) == Nobs, NAME, &
+            "WEIGHTS: Non-conformable array", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        ! Check finiteness before comparisons or weighted moment calculations.
+        call check_cond (all(ieee_is_finite(weights)), NAME, &
+            "WEIGHTS: Values must be finite", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        call check_cond (all(weights >= 0.0_PREC), NAME, &
+            "WEIGHTS: Values must be nonnegative", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+        call check_cond (sum(weights) > 0.0_PREC, NAME, &
+            "WEIGHTS: Sum must be positive", lstatus)
+        if (lstatus /= NF_STATUS_OK) goto 100
+    end if
+
     ! Determine which, if any, moments are needed, and precompute those
     need_std = ldrop_const .or. lscale .or. present(std_x)
     need_mean_only = (lcenter .or. present(mean_x)) .and. .not. need_std
@@ -285,10 +353,27 @@ pure subroutine transform_regr_in_place (X, center, scale, drop_const, &
     if (need_std) then
         ! Compute std. dev., get mean for free.
         allocate (std_x_all(k), mean_x_all(k))
-        call std_impl (X, s=std_x_all, m=mean_x_all, dim=1, dof=1)
+        if (present(weights)) then
+            allocate (w_norm(Nobs))
+            w_norm(:) = weights / sum(weights)
+            do i = 1, k
+                mean_x_all(i) = sum(w_norm * X(:, i))
+                std_x_all(i) = sqrt(sum(w_norm * (X(:, i) - mean_x_all(i))**2.0_PREC))
+            end do
+        else
+            call std_impl (X, s=std_x_all, m=mean_x_all, dim=1, dof=1)
+        end if
     else if (need_mean_only) then
         allocate (mean_x_all(k))
-        call mean_impl (X, m=mean_x_all, dim=1)
+        if (present(weights)) then
+            allocate (w_norm(Nobs))
+            w_norm(:) = weights / sum(weights)
+            do i = 1, k
+                mean_x_all(i) = sum(w_norm * X(:, i))
+            end do
+        else
+            call mean_impl (X, m=mean_x_all, dim=1)
+        end if
     end if
 
     ! --- Filter variables ---
