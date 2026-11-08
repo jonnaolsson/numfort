@@ -20,6 +20,32 @@
 - Preserve `build-ci` logs and matrix summaries. Check CTest results and
   `Testing/Temporary/LastTest.log`; executable exit status determines failure.
 
+## Unit tests
+
+- Unit tests are implemented in `tests/` and are run by CTest.
+- When writing new tests, split distinct test families into separate subroutines.
+  For example, if testing a subroutine `unique()`, combine all tests for
+  `unique()` into a single subroutine `test_unique()`, but do not combine tests
+  for `unique()` and `sort()`. If a test family contains more than 10 test
+  cases, split them into local sub-tests implemented as separate subroutines.
+- Add line comments clearly documenting each individual test case for each
+  fixture.
+- When the expected return value is computed from some mathematical expression,
+  add a line comment explaining that expression.
+- Do not write tests that replicate the implementation verbatim.
+- Create tests for known corner cases or closed-form solutions where the
+  expected return value can be computed independently of the implementation.
+- Use `error stop "<message>"` to terminate a test as soon as a failure is
+  detected. Use static messages for error stops so that no boilerplate dynamic
+  string creation is needed.
+
+## Fortran style
+
+- Follow the global Fortran style guide for modern code in numfort.
+- For legacy external code in `src/external`, follow the style of the original
+  code, but do not introduce obsolete constructs when adding new code to those
+  files.
+
 ## Git
 
 - Do not create commits without explicit user approval.
