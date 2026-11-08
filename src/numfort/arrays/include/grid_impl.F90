@@ -29,19 +29,21 @@ pure subroutine linspace (x, xfrom, xto, step, res_n, res_step)
     if (nx == 0) goto 100
 
     if (.not. present(step)) then
-        ! Infer step size from number boundaries and array size.
-        lstep = (xto - xfrom) / (nx - 1.0_PREC)
-
         x(1) = xfrom
-        do i = 2, nx-1
-            x(i) =  xfrom + (i-1) * lstep
-        end do
+        n = 1
 
-        ! avoid rounding errors at end point. Only do this if NX > 1, otherwise
-        ! the behavior of returning only the terminal point would be unexpected.
-        if (nx > 1) x(nx) = xto
-        ! Actual number of elements used is identical to array size
-        n = nx
+        if (nx > 1) then
+            ! Infer step size from number boundaries and array size.
+            lstep = (xto - xfrom) / (nx - 1.0_PREC)
+
+            do i = 2, nx-1
+                x(i) =  xfrom + (i-1) * lstep
+            end do
+
+            ! Avoid rounding errors at end point.
+            x(nx) = xto
+            n = nx
+        end if
     else
         sgn = signum (xto-xfrom)
         lstep = step
@@ -97,6 +99,12 @@ pure subroutine powerspace (x, xmin, xmax, pow, sparse_end)
 
     ! Silently ignore 0-size arrays
     if (n == 0) return
+
+    ! Singleton grid preserves starting point without power transformation
+    if (n == 1) then
+        x(1) = xmin
+        return
+    end if
 
     call linspace (x, 0.0_PREC, 1.0_PREC)
 
