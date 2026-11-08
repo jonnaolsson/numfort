@@ -64,6 +64,7 @@ pure subroutine __APPEND(polyroots_quad,__PREC) (coefs, roots, n, status)
 
     real (PREC) :: a, b, c, d, x
     real (PREC) :: r1, r2
+    real (PREC) :: scale, tol
 
     status = NF_STATUS_OK
 
@@ -78,7 +79,18 @@ pure subroutine __APPEND(polyroots_quad,__PREC) (coefs, roots, n, status)
     ! https://www.codeproject.com/Articles/25294/Avoiding-Overflow-Underflow-and-Loss-of-Precision
     if (abs(a) > 0.0_PREC) then
         d = b ** 2.0_PREC - 4.0_PREC * a * c
-        if (d > 0.0_PREC) then
+        ! For roots of multiplicity two, representation roundoff in coefficients
+        ! (e.g., c = r^2) or intermediate evaluation via FMA produces a nonzero
+        ! residual |d| = O(eps * scale). Use a relative tolerance around zero to
+        ! prevent spurious root splitting or classifying real double roots as
+        ! complex.
+        scale = b ** 2.0_PREC + 4.0_PREC * abs(a * c)
+        tol = 4.0_PREC * epsilon(1.0_PREC) * scale
+        if (abs(d) <= tol) then
+            r1 = - b / (2.0_PREC * a)
+            r2 = r1
+            n = 1
+        else if (d > 0.0_PREC) then
             x = - b - sqrt(d)
             r1 = x / (2.0_PREC * a)
             r2 = 2.0_PREC * c / x
@@ -89,10 +101,6 @@ pure subroutine __APPEND(polyroots_quad,__PREC) (coefs, roots, n, status)
                 r2 = x
             end if
             n = 2
-        else if (d == 0.0_PREC) then
-            r1 = -b / (2.0_PREC * a)
-            r2 = r1
-            n = 1
         else
             ! All roots are complex
             n = 0
