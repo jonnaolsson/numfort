@@ -385,7 +385,7 @@ subroutine lm_check_input (m, n, ftol, xtol, gtol, maxfev, factor, eps, &
 
     integer, intent(in) :: m, n
     real (PREC), intent(in), optional :: ftol, xtol, gtol
-    integer, intent(in) :: maxfev
+    integer, intent(in), optional :: maxfev
     real (PREC), intent(in), optional :: factor
     real (PREC), intent(in), optional :: eps
     type (status_t), intent(out) :: status
