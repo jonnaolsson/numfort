@@ -319,3 +319,107 @@ subroutine __APPEND(test_fixed_alloc,__PREC) ()
     end do
 
 end subroutine
+
+
+subroutine __APPEND(test_fixed_alloc_malformed,__PREC) ()
+    !*  Test error handling in READ_FIXED_ALLOC for malformed inputs:
+    !   - Line length not divisible by field width.
+    !   - Absence of MSG optional argument.
+    !   - Retention of preallocated array state on failure.
+
+    integer, parameter :: PREC = __PREC
+
+    real (PREC), dimension(:,:), allocatable :: dat
+    type (status_t) :: status
+    character (100) :: msg
+    character (20) :: fmt
+    character (1024) :: tmpdir, path
+    character (*), parameter :: filename = "test_numfort_io_fixed_alloc_malformed.txt"
+    integer :: uid, iostat
+
+    call get_temp_directory (tmpdir, status)
+    path = trim(tmpdir) // "/" // filename
+
+    ! Hand-written fixture with a first line of exactly 5 characters: '12345'.
+    ! The field width for '(f4.1)' is 4.
+    ! Because 5 mod 4 = 1 /= 0, the record length is not divisible by the field width.
+    open (newunit=uid, file=path, status="replace", action="write", iostat=iostat)
+    if (iostat /= 0) error stop "Failed to open temporary fixture file"
+    write (uid, "(a)") "12345"
+    close (unit=uid)
+
+    fmt = "(f4.1)"
+
+    ! Test case 1: Malformed line width with unallocated DAT and MSG present
+    status = NF_STATUS_UNDEFINED
+    msg = ""
+    call read_fixed_alloc (path, fmt, dat, status=status, msg=msg)
+    if (.not. (status == NF_STATUS_INVALID_STATE)) &
+        error stop "Status not INVALID_STATE for malformed width with MSG"
+    if (trim(msg) /= "Failed to determine record length") &
+        error stop "Diagnostic message mismatch for malformed width"
+    if (allocated(dat)) &
+        error stop "Output array unexpectedly allocated on failure"
+
+    ! Test case 2: Malformed line width with unallocated DAT and MSG omitted
+    status = NF_STATUS_UNDEFINED
+    call read_fixed_alloc (path, fmt, dat, status=status)
+    if (.not. (status == NF_STATUS_INVALID_STATE)) &
+        error stop "Status not INVALID_STATE for malformed width without MSG"
+    if (allocated(dat)) &
+        error stop "Output array unexpectedly allocated on failure without MSG"
+
+    ! Test case 3: Malformed line width with preallocated DAT and MSG present
+    allocate (dat(2, 2))
+    dat(:,:) = -999.0_PREC
+    status = NF_STATUS_UNDEFINED
+    msg = ""
+    call read_fixed_alloc (path, fmt, dat, status=status, msg=msg)
+    if (.not. (status == NF_STATUS_INVALID_STATE)) &
+        error stop "Status not INVALID_STATE with preallocated DAT and MSG"
+    if (trim(msg) /= "Failed to determine record length") &
+        error stop "Diagnostic message mismatch with preallocated DAT"
+    if (.not. (allocated(dat) .and. size(dat, 1) == 2 .and. size(dat, 2) == 2)) &
+        error stop "Preallocated array shape altered on failure"
+    if (any(dat /= -999.0_PREC)) &
+        error stop "Preallocated array contents altered on failure"
+
+    ! Test case 4: Malformed line width with preallocated DAT and MSG omitted
+    status = NF_STATUS_UNDEFINED
+    call read_fixed_alloc (path, fmt, dat, status=status)
+    if (.not. (status == NF_STATUS_INVALID_STATE)) &
+        error stop "Status not INVALID_STATE with preallocated DAT without MSG"
+    if (any(dat /= -999.0_PREC)) &
+        error stop "Preallocated array contents altered without MSG"
+
+    deallocate (dat)
+
+    ! Hand-written empty record fixture (0 characters).
+    ! Field width is 4; line length is 0, so nrec = 0 <= 0 cannot determine record length.
+    open (newunit=uid, file=path, status="replace", action="write", iostat=iostat)
+    if (iostat /= 0) error stop "Failed to open temporary fixture file for empty line"
+    write (uid, "(a)") ""
+    close (unit=uid)
+
+    ! Test case 5: Empty line record with MSG present
+    status = NF_STATUS_UNDEFINED
+    msg = ""
+    call read_fixed_alloc (path, fmt, dat, status=status, msg=msg)
+    if (.not. (status == NF_STATUS_INVALID_STATE)) &
+        error stop "Status not INVALID_STATE for empty record"
+    if (trim(msg) /= "Failed to determine record length") &
+        error stop "Diagnostic message mismatch for empty record"
+    if (allocated(dat)) &
+        error stop "Output array unexpectedly allocated for empty record"
+
+    ! Test case 6: Empty line record without MSG
+    status = NF_STATUS_UNDEFINED
+    call read_fixed_alloc (path, fmt, dat, status=status)
+    if (.not. (status == NF_STATUS_INVALID_STATE)) &
+        error stop "Status not INVALID_STATE for empty record without MSG"
+
+    ! Clean up temporary file
+    open (newunit=uid, file=path, status="old", action="read", iostat=iostat)
+    if (iostat == 0) close (unit=uid, status="delete")
+
+end subroutine

@@ -61,9 +61,9 @@
 
     nrec = linelen / fwidth
 
-    if (nrec * fwidth /= linelen) then
+    if (nrec <= 0 .or. nrec * fwidth /= linelen) then
         lstatus = NF_STATUS_INVALID_STATE
-        msg = 'Failed to determine record length'
+        lmsg = "Failed to determine record length"
         goto 50
     end if
 
@@ -153,6 +153,7 @@
     end select
 
     lstatus = NF_STATUS_OK
+    lmsg = ""
 
 10  continue
 
@@ -177,6 +178,7 @@
 
 100 continue
 
+    if (allocated(buf)) deallocate (buf)
     if (allocated(fmt_field)) deallocate (fmt_field)
     if (allocated(lfmt)) deallocate (lfmt)
 

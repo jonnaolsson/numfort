@@ -13,19 +13,16 @@ program test_io_fixed
 
     implicit none
 
-    call test_all ()
-
-    contains
-
-subroutine test_all ()
-
     call test_fixed_real32 ()
     call test_fixed_real64 ()
 
     call test_fixed_alloc_real32 ()
     call test_fixed_alloc_real64 ()
 
-end subroutine
+    call test_fixed_alloc_malformed_real32 ()
+    call test_fixed_alloc_malformed_real64 ()
+
+    contains
 
 #include <numfort_real32.h>
 #include "io_fixed_impl.F90"
