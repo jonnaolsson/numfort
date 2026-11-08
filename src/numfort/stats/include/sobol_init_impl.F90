@@ -142,7 +142,9 @@ pure subroutine __APPEND(sobol_init_array,__INTSIZE) (self, ndim, s, a, m, max_l
         do k = s_j + 1, max_bits
             mk = ieor(m_j(k-s_j), ishft(m_j(k-s_j), - s_j))
             do i = 1, s_j - 1
-                mk = ieor(mk, m_j(k-i) * iand(ishft(a_j, s_j-i-1), 1_int64))
+                ! Negative shift extracts bit (s_j - i - 1) of a_j; a positive shift
+                ! in Fortran shifts left, which drops higher-degree coefficients.
+                mk = ieor(mk, m_j(k-i) * iand(ishft(a_j, -(s_j - i - 1)), 1_int64))
             end do
             m_j(k) = mk
         end do
