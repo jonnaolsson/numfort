@@ -30,10 +30,11 @@ subroutine __APPEND(test_gemv,__PREC) ()
                 n = nrange(j)
 
                 allocate (a(m, n))
-                allocate (x(n))
                 if (trans == "N") then
+                    allocate (x(n))
                     allocate (y(m), y95(m))
                 else
+                    allocate (x(m))
                     allocate (y(n), y95(n))
                 end if
 
