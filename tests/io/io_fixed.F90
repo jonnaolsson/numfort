@@ -22,6 +22,12 @@ program test_io_fixed
     call test_fixed_alloc_malformed_real32 ()
     call test_fixed_alloc_malformed_real64 ()
 
+    call test_fixed_alloc_long_records_real32 ()
+    call test_fixed_alloc_long_records_real64 ()
+
+    call test_fixed_alloc_row_widths_real32 ()
+    call test_fixed_alloc_row_widths_real64 ()
+
     contains
 
 #include <numfort_real32.h>

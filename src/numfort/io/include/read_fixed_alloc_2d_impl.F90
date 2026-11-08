@@ -1,5 +1,7 @@
 
-    ! Implementation of READ_FIXED_ALLOC
+    ! Implementation of READ_FIXED_ALLOC.
+    ! Infers record length from the first record and requires all subsequent
+    ! records to have the same length.
 
     character (*), intent(in) :: path
     character (*), intent(in) :: fmt
@@ -53,9 +55,17 @@
         access='sequential', iostat=iostat, iomsg=lmsg, err=100)
 
     ! ---- Determine line length -----
+    ! Read through the end of the first record in chunks of LINE_BUFFER_LEN
+    ! to determine the complete record length without truncating long records.
     allocate (character (LINE_BUFFER_LEN) :: buf)
-    read (unit=uid, fmt='(a)', iomsg=lmsg, iostat=iostat, size=linelen, &
-        advance='no', err=50) buf
+    linelen = 0
+    do
+        read (unit=uid, fmt="(a)", iomsg=lmsg, iostat=iostat, size=n, &
+            advance="no", err=50) buf
+        if (is_iostat_end (iostat)) exit
+        linelen = linelen + n
+        if (is_iostat_eor (iostat)) exit
+    end do
 
     deallocate (buf)
 
@@ -89,12 +99,23 @@
     ! Do not add any EOR character at the end, this breaks ifort
     write (lfmt, '("(*(", a, "))")') trim(fmt_field)
 
+    ! Allocate a buffer of length linelen + 1 so that any record of exact
+    ! length linelen ends with IOSTAT_EOR and n == linelen, shorter records
+    ! yield n < linelen, and longer records fill linelen + 1 characters
+    ! without reaching end-of-record.
+    allocate (character (linelen + 1) :: buf)
+
     do while (.true.)
         do i = 1, CHUNK_NCOL
-            ! Read each line individually since we do not know how many
-            ! lines are present and we need to count them (cannot recover
-            ! ex post how many lines were read)
-            read (unit=uid, fmt=lfmt, iomsg=lmsg, iostat=iostat, err=10, end=5) &
+            read (unit=uid, fmt="(a)", iomsg=lmsg, iostat=iostat, size=n, &
+                advance="no", err=10) buf
+            if (is_iostat_end (iostat)) goto 5
+            if (.not. is_iostat_eor (iostat) .or. n /= linelen) then
+                lstatus = NF_STATUS_INVALID_STATE
+                lmsg = "Inconsistent record length"
+                goto 10
+            end if
+            read (buf(1:linelen), fmt=lfmt, iomsg=lmsg, iostat=iostat, err=10) &
                 ptr_curr%dat(:,i)
             nlines = nlines + 1
         end do
@@ -107,6 +128,12 @@
     end do
 
 5   continue
+
+    if (nlines <= 0) then
+        lstatus = NF_STATUS_INVALID_STATE
+        lmsg = "Failed to determine record length"
+        goto 10
+    end if
 
     ! Processing reached EOF, no error encountered
     ! Copy linked list of chunks into output array, transform as requested
@@ -153,6 +180,8 @@
     end select
 
     lstatus = NF_STATUS_OK
+    ! Clear local diagnostic so transient runtime EOF messages from the
+    ! read loop above are not copied into msg on success.
     lmsg = ""
 
 10  continue
