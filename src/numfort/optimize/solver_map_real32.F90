@@ -6,9 +6,9 @@ module numfort_optimize_solver_map_real32
     use, intrinsic :: iso_fortran_env
     use, intrinsic :: ieee_arithmetic
 
-    use numfort_arrays, only: diag
     use numfort_common_status
     use numfort_common_input_checks
+    use numfort_core_logexp, only: expit
     use numfort_optimize_solver_map_common
 
     implicit none
