@@ -499,11 +499,11 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
         ! for each element.
         dx(:) = dx_scale * dx
 
-        call dumb_line_search (fcn, x, nrm_last, liprint, x_ls, fx_ls, dx, fx)
+        call dumb_line_search (fcn, x, nrm_last, liprint, x_ls, fx_ls, dx, fx, &
+            status)
 
-        if (.not. all(ieee_is_finite(fx))) then
-            ptr_res%msg = 'Invalid function value encountered during line search'
-            status = NF_STATUS_INVALID_STATE
+        if (status /= NF_STATUS_OK) then
+            ptr_res%msg = "Invalid function value encountered during line search"
             goto 100
         end if
 
@@ -625,7 +625,7 @@ end subroutine
 
 
 recursive subroutine dumb_line_search (fcn, x, nrm, iprint, &
-        x_ls, fx_ls, dx, fx)
+        x_ls, fx_ls, dx, fx, status)
     !*  DUMB_LINE_SEARCH uses backtracking to identify the step size in a
     !   given direction that yields a lower Euclidean norm of the objective
     !   function than at a given point X.
@@ -646,39 +646,56 @@ recursive subroutine dumb_line_search (fcn, x, nrm, iprint, &
         !*  On entry, contains the function value evaluated at X. On exit,
         !   contains the function value at X + DX where DX is the updated
         !   value computed by the routine.
+    type (status_t), intent(out) :: status
+        !*  Status code: NF_STATUS_OK if an admissible finite trial was
+        !   identified, or NF_STATUS_INVALID_STATE if all trials were invalid.
 
     integer :: i, n
     real (PREC) :: step_size, nrm_ls, nrm_ls_best, step_best
+    logical :: has_admissible, do_print
 
     n = size(x)
 
+    do_print = iand(iprint, PRINT_LSEARCH) == PRINT_LSEARCH
+
     ! Line search
+    has_admissible = .false.
     nrm_ls_best = huge(1.0_PREC)
     step_best = 0.0_PREC
 
-    if (iand(iprint, PRINT_LSEARCH) == PRINT_LSEARCH) then
+    if (do_print) then
         print '(tr1, a)', "ROOT_BROYDEN: LINE SEARCH routine"
     end if
 
     do i = 1, LINESEARCH_MAX_STEPS
-        step_size = (LINESEARCH_MAX_STEPS-i+1.0_PREC)/LINESEARCH_MAX_STEPS
+        step_size = (LINESEARCH_MAX_STEPS - i + 1.0_PREC) / LINESEARCH_MAX_STEPS
         x_ls(:) = x + step_size * dx
 
         call dispatch (fcn, x_ls, fx_ls)
-        nrm_ls = norm2(fx_ls)
 
-        if (iand(iprint, PRINT_LSEARCH) == PRINT_LSEARCH) then
+        if (do_print) then
             if (i > 1) then
-                print '(tr3, a, i0)', "ROOT_BROYDEN: BACKTRACKING step #", i-1
+                print '(tr3, a, i0)', "ROOT_BROYDEN: BACKTRACKING step #", i - 1
             end if
             print 200, "x: ", x_ls
             print 200, "f(x): ", fx_ls
+        end if
+
+        if (.not. all(ieee_is_finite(fx_ls))) cycle
+
+        nrm_ls = norm2(fx_ls)
+        if (.not. ieee_is_finite(nrm_ls)) cycle
+
+        if (do_print) then
             print 201, "2-norm: ", nrm_ls
         end if
+
+        has_admissible = .true.
 
         if (nrm_ls <= nrm) then
             fx(:) = fx_ls
             dx = dx * step_size
+            status = NF_STATUS_OK
             goto 100
         else if (nrm_ls < nrm_ls_best) then
             fx(:) = fx_ls
@@ -687,12 +704,17 @@ recursive subroutine dumb_line_search (fcn, x, nrm, iprint, &
         end if
     end do
 
-    ! No step size with decreasing objective found, take the least bad
-    dx = step_best * dx
+    if (has_admissible) then
+        ! No step size with decreasing objective found, take the least bad
+        dx = step_best * dx
+        status = NF_STATUS_OK
+    else
+        status = NF_STATUS_INVALID_STATE
+    end if
 
 100 continue
 
-    if (iand(iprint, PRINT_LSEARCH) == PRINT_LSEARCH) then
+    if (do_print) then
         print '(tr1, a)', "ROOT_BROYDEN: LINE SEARCH complete"
     end if
 
