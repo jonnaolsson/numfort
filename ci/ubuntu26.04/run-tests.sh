@@ -4,7 +4,7 @@
 #
 # - Select a GNU compiler major or ifx, followed by Debug or Release.
 # - Read build options from the environment: library type, tests, examples,
-#   OpenMP, IPO, BLAS95, and MKL.
+#   OpenMP, IPO, BLAS95, MKL, and native architecture.
 # - Use mounted sources; keep builds, installs, and temporary files in
 #   BUILD_ROOT.
 # - Require the selected BLAS provider, including MKL through with-oneapi.
@@ -38,11 +38,12 @@ openmp=${NUMFORT_USE_OPENMP:-ON}
 ipo=${NUMFORT_USE_LTO:-OFF}
 blas95=${NUMFORT_BUILD_BLAS95:-OFF}
 mkl=${NUMFORT_USE_MKL:-OFF}
+native=${NUMFORT_NATIVE_ARCH:-OFF}
 if [[ ( ! ${compiler} =~ ^[0-9]+$ && ${compiler} != ifx ) || ! ${config} =~ ^(Debug|Release)$ ]]; then
     printf 'Expected a GNU compiler major or ifx, and Debug/Release.\n' >&2
     exit 2
 fi
-for value in "${shared}" "${tests}" "${examples}" "${openmp}" "${ipo}" "${blas95}" "${mkl}"; do
+for value in "${shared}" "${tests}" "${examples}" "${openmp}" "${ipo}" "${blas95}" "${mkl}" "${native}"; do
     if [[ ! ${value} =~ ^(ON|OFF)$ ]]; then
         printf 'Build options must use ON/OFF.\n' >&2
         exit 2
@@ -75,7 +76,7 @@ fi
 # ==============================================================================
 # Sources can be read-only; every configuration has its own caches/module files.
 numfort_source=${NUMFORT_SOURCE_DIR:-/src/numfort}
-job_dir=${BUILD_ROOT:-/build}/${toolchain}/${config}/shared-${shared}-tests-${tests}-examples-${examples}-openmp-${openmp}-ipo-${ipo}-blas95-${blas95}-mkl-${mkl}
+job_dir=${BUILD_ROOT:-/build}/${toolchain}/${config}/shared-${shared}-tests-${tests}-examples-${examples}-openmp-${openmp}-ipo-${ipo}-blas95-${blas95}-mkl-${mkl}-native-${native}
 numfort_build=${job_dir}/numfort
 numfort_prefix=${job_dir}/numfort-install
 relocated_prefix=${job_dir}/relocated-install
@@ -92,6 +93,9 @@ export TMP=${job_dir}/tmp TEMP=${job_dir}/tmp TMPDIR=${job_dir}/tmp
 unset FFLAGS FCFLAGS CFLAGS CXXFLAGS LDFLAGS CMAKE_PREFIX_PATH numfort_DIR
 common=(-G Ninja "-DCMAKE_C_COMPILER=${cc}" "-DCMAKE_Fortran_COMPILER=${fc}"
     "-DCMAKE_BUILD_TYPE=${config}")
+if [[ ${native} == ON ]]; then
+    common+=("-DCMAKE_Fortran_FLAGS=-march=native" "-DCMAKE_C_FLAGS=-march=native")
+fi
 "${fc}" --version
 cmake --version
 

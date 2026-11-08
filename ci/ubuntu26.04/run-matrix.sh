@@ -39,8 +39,8 @@ add_job() {
 
 # Every compiler runs full Debug/static and Release/shared builds.
 for major in 11 12 13 14 15 16; do
-    add_job "gnu${major}-debug-static" "${major}" Debug OFF ON ON ON OFF OFF OFF
-    add_job "gnu${major}-release-shared" "${major}" Release ON ON ON ON OFF OFF OFF
+    add_job "gnu${major}-debug-static" "${major}" Debug OFF ON ON ON OFF OFF OFF OFF
+    add_job "gnu${major}-release-shared" "${major}" Release ON ON ON ON OFF OFF OFF OFF
 done
 
 # On Ubuntu's default compiler, cross tests/examples/shared/OpenMP in Debug.
@@ -49,24 +49,31 @@ for shared in OFF ON; do
         for examples in OFF ON; do
             for openmp in OFF ON; do
                 add_job "gnu15-options-${shared}-${tests}-${examples}-${openmp}" \
-                    15 Debug "${shared}" "${tests}" "${examples}" "${openmp}" OFF OFF OFF
+                    15 Debug "${shared}" "${tests}" "${examples}" "${openmp}" OFF OFF OFF OFF
             done
         done
     done
 done
 
 # Exercise IPO archives and explicit wrappers without tests/examples consumers.
-add_job gnu15-release-static-ipo 15 Release OFF ON ON ON ON OFF OFF
-add_job gnu15-minimal-blas95 15 Debug OFF OFF OFF OFF OFF ON OFF
+add_job gnu15-release-static-ipo 15 Release OFF ON ON ON ON OFF OFF OFF
+add_job gnu15-minimal-blas95 15 Debug OFF OFF OFF OFF OFF ON OFF OFF
 
 # Separate compiler coverage from MKL integration, keeping the option cross
 # small.
-add_job gnu15-mkl-debug-static 15 Debug OFF ON ON ON OFF OFF ON
-add_job gnu15-mkl-release-shared 15 Release ON ON ON ON OFF OFF ON
-add_job ifx-debug-static ifx Debug OFF ON ON ON OFF OFF OFF
-add_job ifx-release-shared ifx Release ON ON ON ON OFF OFF OFF
-add_job ifx-mkl-debug-static ifx Debug OFF ON ON ON OFF OFF ON
-add_job ifx-mkl-release-shared ifx Release ON ON ON ON OFF OFF ON
+add_job gnu15-mkl-debug-static 15 Debug OFF ON ON ON OFF OFF ON OFF
+add_job gnu15-mkl-release-shared 15 Release ON ON ON ON OFF OFF ON OFF
+add_job ifx-debug-static ifx Debug OFF ON ON ON OFF OFF OFF OFF
+add_job ifx-release-shared ifx Release ON ON ON ON OFF OFF OFF OFF
+add_job ifx-mkl-debug-static ifx Debug OFF ON ON ON OFF OFF ON OFF
+add_job ifx-mkl-release-shared ifx Release ON ON ON ON OFF OFF ON OFF
+
+# Exercise native host microarchitecture and FMA/SIMD optimizations.
+add_job gnu15-release-shared-native 15 Release ON ON ON ON OFF OFF OFF ON
+add_job gnu16-release-shared-native 16 Release ON ON ON ON OFF OFF OFF ON
+add_job gnu15-mkl-release-shared-native 15 Release ON ON ON ON OFF OFF ON ON
+add_job ifx-release-shared-native ifx Release ON ON ON ON OFF OFF OFF ON
+add_job ifx-mkl-release-shared-native ifx Release ON ON ON ON OFF OFF ON ON
 
 # ==============================================================================
 # Job selection
@@ -85,7 +92,7 @@ if [[ ${1:-} == --list ]]; then
         printf 'Use --list by itself.\n' >&2
         exit 2
     fi
-    printf 'job\tcompiler\tconfiguration\tshared\ttests\texamples\topenmp\tipo\tblas95\tmkl\n'
+    printf 'job\tcompiler\tconfiguration\tshared\ttests\texamples\topenmp\tipo\tblas95\tmkl\tnative\n'
     for name in "${order[@]}"; do
         printf '%s\t%s\n' "${name}" "${jobs[${name}]}"
     done

@@ -37,6 +37,7 @@ docker run --rm --ulimit core=0 --user "$(id -u):$(id -g)" \
 - Set `-e NUMFORT_USE_MKL=ON` to test MKL (default OFF). MKL jobs require MKLROOT
   and fail if CMake falls back to LAPACK. MKL uses LP64, sequential, shared
   libraries; `BUILD_SHARED_LIBS` selects the numfort library type independently.
+- Set `-e NUMFORT_NATIVE_ARCH=ON` to build with `-march=native` host optimizations.
 - BLAS95 discovery checks compiler compatibility; numfort builds its own wrappers
   when compatible MKL wrappers are unavailable.
 - Set `-e CMAKE_BUILD_PARALLEL_LEVEL=N` to change build parallelism (default 4).
@@ -55,15 +56,16 @@ with-oneapi bash /src/numfort/ci/ubuntu26.04/run-matrix.sh --list
 with-oneapi bash /src/numfort/ci/ubuntu26.04/run-matrix.sh
 ```
 
-- The matrix has 35 unique jobs: Debug/static and Release/shared for compilers
+- The matrix has 40 unique jobs: Debug/static and Release/shared for compilers
   11–16; all tests/examples/shared/OpenMP combinations in Debug on compiler 15;
-  separate static IPO and explicit BLAS95 jobs; six ifx/MKL jobs below.
+  separate static IPO and explicit BLAS95 jobs; six ifx/MKL jobs; and five
+  native host-optimized Release jobs (GNU 15, GNU 16, GNU 15 MKL, ifx, ifx MKL).
 - Run selected jobs by passing their names, e.g. `run-matrix.sh gnu11-debug-static`.
   Use this mode for one job per CI matrix worker.
 - Each option is also available as an ON/OFF environment variable when running
   `run-tests.sh`: `BUILD_SHARED_LIBS`, `NUMFORT_BUILD_TESTS`,
   `NUMFORT_BUILD_EXAMPLES`, `NUMFORT_USE_OPENMP`, `NUMFORT_USE_LTO`,
-  `NUMFORT_BUILD_BLAS95`, and `NUMFORT_USE_MKL`.
+  `NUMFORT_BUILD_BLAS95`, `NUMFORT_USE_MKL`, and `NUMFORT_NATIVE_ARCH`.
 - Default single jobs enable tests, examples, and OpenMP; shared, IPO, and
   explicit BLAS95 default to OFF (BLAS95 is enabled by CMake when needed).
 - The driver continues after failures and returns nonzero if any job exits

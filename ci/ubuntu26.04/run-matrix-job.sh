@@ -20,7 +20,7 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # ==============================================================================
 # Worker arguments
 # ==============================================================================
-if (( $# != 11 )); then
+if (( $# != 12 )); then
     printf 'Internal worker: invoke through run-matrix.sh.\n' >&2
     exit 2
 fi
@@ -35,6 +35,7 @@ openmp=${8}
 ipo=${9}
 blas95=${10}
 mkl=${11}
+native=${12}
 
 # ==============================================================================
 # Job paths and previous logs
@@ -44,7 +45,7 @@ toolchain=gnu-${compiler}
 if [[ ${compiler} == ifx ]]; then
     toolchain=ifx
 fi
-job_dir=${BUILD_ROOT:-/build}/${toolchain}/${config}/shared-${shared}-tests-${tests}-examples-${examples}-openmp-${openmp}-ipo-${ipo}-blas95-${blas95}-mkl-${mkl}
+job_dir=${BUILD_ROOT:-/build}/${toolchain}/${config}/shared-${shared}-tests-${tests}-examples-${examples}-openmp-${openmp}-ipo-${ipo}-blas95-${blas95}-mkl-${mkl}-native-${native}
 test_log=${job_dir}/numfort/Testing/Temporary/LastTest.log
 if [[ -f ${test_log} ]]; then
     mv -- "${test_log}" "${run_dir}/${name}-numfort-previous-LastTest.log"
@@ -57,6 +58,7 @@ code=0
 BUILD_SHARED_LIBS=${shared} NUMFORT_BUILD_TESTS=${tests} \
     NUMFORT_BUILD_EXAMPLES=${examples} NUMFORT_USE_OPENMP=${openmp} \
     NUMFORT_USE_LTO=${ipo} NUMFORT_BUILD_BLAS95=${blas95} NUMFORT_USE_MKL=${mkl} \
+    NUMFORT_NATIVE_ARCH=${native} \
     bash "${script_dir}/run-tests.sh" "${compiler}" "${config}" > "${log}" 2>&1 || code=$?
 
 # ==============================================================================
