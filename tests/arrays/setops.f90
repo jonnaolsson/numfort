@@ -14,6 +14,7 @@ contains
 
 subroutine test_all ()
 
+    call test_unique ()
     call test_setdiff ()
     call test_intersect ()
     call test_union ()
@@ -22,6 +23,17 @@ subroutine test_all ()
 end subroutine
 
 subroutine test_setdiff ()
+    !* Unit tests for SETDIFF.
+
+    call test_setdiff_degenerate ()
+    call test_setdiff_overlapping ()
+    call test_setdiff_disjoint ()
+
+end subroutine
+
+
+subroutine test_setdiff_degenerate ()
+    !* Test SETDIFF with degenerate (empty or single-element) sets.
 
     real (PREC), dimension(:), allocatable :: set_a, set_b, diff
     integer, dimension(:), allocatable :: idx
@@ -41,7 +53,7 @@ subroutine test_setdiff ()
         error stop "Singleton A, zero-size B"
     deallocate (set_a, set_b, diff, idx)
 
-    ! Degenerate set B, non-sorted set A with duplicates
+    ! 3. Degenerate set B, non-sorted set A with duplicates
     allocate (set_a(5), set_b(0), diff(5), idx(5))
     set_a(:) = [real (PREC) :: 1, 1, 5, 4, 7]
     idx = 0
@@ -54,14 +66,24 @@ subroutine test_setdiff ()
         error stop "Zero-size B, unsorted A with duplicates"
     deallocate (set_a, set_b, diff, idx)
 
-    ! 3. Degenerate input A, some set B
+    ! 4. Degenerate input A, some set B
     allocate (set_a(0), set_b(1), diff(1), idx(1))
     set_b = 1.0
     call setdiff (set_a, set_b, n, diff, idx)
     if (.not. (n == 0)) error stop "Zero-size A, singleton B"
     deallocate (set_a, set_b, diff, idx)
 
-    ! 4. Identical non-degenerate set A, B
+end subroutine
+
+
+subroutine test_setdiff_overlapping ()
+    !* Test SETDIFF with overlapping, subset, or superset arrays.
+
+    real (PREC), dimension(:), allocatable :: set_a, set_b, diff
+    integer, dimension(:), allocatable :: idx
+    integer :: n
+
+    ! 1. Identical non-degenerate set A, B
     allocate (set_a(5), set_b(5), diff(5), idx(5))
     call linspace (set_a, 1.0_PREC, 5.0_PREC)
     set_b(:) = set_a
@@ -69,7 +91,7 @@ subroutine test_setdiff ()
     if (.not. (n == 0)) error stop "Non-degenerate identical A, B"
     deallocate (set_a, set_b, diff, idx)
 
-    ! 5. B is strict superset of A
+    ! 2. B is strict superset of A
     allocate (set_a(3), set_b(5), diff(5), idx(5))
     call linspace (set_b, 1.0_PREC, 5.0_PREC)
     set_a(:) = set_b(2:4)
@@ -77,7 +99,7 @@ subroutine test_setdiff ()
     if (.not. (n == 0)) error stop "Non-degenerate A, B; A strict subset of B"
     deallocate (set_a, set_b, diff, idx)
 
-    ! 6. Some example that yields non-empty A\B
+    ! 3. Some example that yields non-empty A\B
     allocate (set_a(5), set_b(3), diff(5), idx(5))
     diff = 0
     idx = 0
@@ -89,7 +111,7 @@ subroutine test_setdiff ()
     if (.not. (n == 2 .and. all (diff(1:2) == [1,5]) .and. all (idx(1:2) == [5,1]))) &
         error stop "Non-generate A, B; B strict subset of A"
 
-    ! 7. Test with assume_unique = .true. using the same input arrays
+    ! 4. Test with assume_unique = .true. using the same input arrays
     diff = 0
     idx = 0
     n = 0
@@ -98,8 +120,7 @@ subroutine test_setdiff ()
         error stop "Non-degenerate A, B; B strict subset of A; assumed unique"
     deallocate (set_a, set_b, diff, idx)
 
-    ! 8. Test with B strict subset of A, B contains initial sorted elements
-    ! of A.
+    ! 5. Test with B strict subset of A, B contains initial sorted elements of A.
     allocate (set_a(5), set_b(3), diff(2), idx(2))
     diff = 0
     idx = 0
@@ -109,7 +130,7 @@ subroutine test_setdiff ()
     if (.not. (n == 2 .and. all (diff(1:2) == [4,5]) .and. all (idx(1:2) == [4,5]))) &
         error stop "B strict subset of A; B contains initial elems of A"
 
-    ! Test with B containing last elements of A
+    ! 6. Test with B containing last elements of A
     diff = 0
     idx = 0
     n = 0
@@ -119,7 +140,17 @@ subroutine test_setdiff ()
         error stop "B strict subset of A; B contains last elemts of A"
     deallocate (diff, idx, set_a, set_b)
 
-    ! Test with A, B disjoint
+end subroutine
+
+
+subroutine test_setdiff_disjoint ()
+    !* Test SETDIFF with disjoint sets, including zero and negative values.
+
+    real (PREC), dimension(:), allocatable :: set_a, set_b, diff
+    integer, dimension(:), allocatable :: idx
+    integer :: n
+
+    ! 1. Test with A, B disjoint (original issue #13 reproducer)
     allocate (set_a(3), set_b(5), idx(3), diff(3))
     diff = 0
     idx = 0
@@ -131,6 +162,94 @@ subroutine test_setdiff ()
         [1,2,3]))) &
         error stop "A, B disjoint"
     deallocate (set_a, set_b, diff, idx)
+
+    ! 2. A, B disjoint, A contains zero, negative values and duplicates
+    allocate (set_a(6), set_b(3), idx(6), diff(6))
+    diff = 0
+    idx = 0
+    n = 0
+    set_a = [real (PREC) :: 0, -2, 4, 0, -2, 0]
+    set_b = [real (PREC) :: 1, 3, 5]
+    call setdiff (set_a, set_b, n, diff, idx)
+    if (.not. (n == 3 .and. all (diff(1:3) == [-2, 0, 4]) &
+            .and. all (set_a(idx(1:3)) == diff(1:3)))) &
+        error stop "A, B disjoint; A with zero, negatives, duplicates"
+    deallocate (set_a, set_b, diff, idx)
+
+    ! 3. B removes zero from A containing zero, negative values and duplicates
+    allocate (set_a(6), set_b(2), idx(6), diff(6))
+    diff = 0
+    idx = 0
+    n = 0
+    set_a = [real (PREC) :: 0, -2, 4, 0, -2, 0]
+    set_b = [real (PREC) :: 0, 7]
+    call setdiff (set_a, set_b, n, diff, idx)
+    if (.not. (n == 2 .and. all (diff(1:2) == [-2, 4]) &
+            .and. all (set_a(idx(1:2)) == diff(1:2)))) &
+        error stop "B contains zero; A with zero, negatives, duplicates"
+    deallocate (set_a, set_b, diff, idx)
+
+end subroutine
+
+
+subroutine test_unique ()
+    !* Unit tests for UNIQUE, including inputs with zero as minimum value
+    !* (affected by flush-to-zero), negative values and duplicates.
+
+    real (PREC), dimension(:), allocatable :: x
+    real (real32), dimension(:), allocatable :: xs
+    integer, dimension(:), allocatable :: xi
+    real (PREC), dimension(:), allocatable :: ux
+    real (real32), dimension(:), allocatable :: uxs
+    integer, dimension(:), allocatable :: uxi
+    integer, dimension(:), allocatable :: idx
+    integer :: n
+
+    ! Unique sorted input with zero as minimum value
+    allocate (x(3), ux(3), idx(3))
+    x = [real (PREC) :: 0, 2, 4]
+    call unique (x, n, ux, idx)
+    if (.not. (n == 3 .and. all (ux == x) .and. all (idx == [1, 2, 3]))) &
+        error stop "UNIQUE: real64, zero minimum"
+    deallocate (x, ux, idx)
+
+    ! Same for real32
+    allocate (xs(3), uxs(3), idx(3))
+    xs = [real (real32) :: 0, 2, 4]
+    call unique (xs, n, uxs, idx)
+    if (.not. (n == 3 .and. all (uxs == xs) .and. all (idx == [1, 2, 3]))) &
+        error stop "UNIQUE: real32, zero minimum"
+    deallocate (xs, uxs, idx)
+
+    ! Unsorted input with zero, negative values and duplicates
+    allocate (x(7), ux(7), idx(7))
+    ux = 0
+    idx = 0
+    x = [real (PREC) :: 4, 0, -1, 0, 4, -1, 2]
+    call unique (x, n, ux, idx)
+    if (.not. (n == 4 .and. all (ux(1:4) == [-1, 0, 2, 4]) &
+            .and. all (x(idx(1:4)) == ux(1:4)))) &
+        error stop "UNIQUE: real64, zero, negatives, duplicates"
+    deallocate (x, ux, idx)
+
+    ! Only zeros
+    allocate (x(3), ux(3), idx(3))
+    x = 0.0_PREC
+    call unique (x, n, ux, idx)
+    if (.not. (n == 1 .and. ux(1) == 0.0_PREC)) &
+        error stop "UNIQUE: real64, all zeros"
+    deallocate (x, ux, idx)
+
+    ! Integer input containing large negative values and duplicates
+    allocate (xi(4), uxi(4), idx(4))
+    uxi = 0
+    idx = 0
+    xi = [-huge (0), 5, -huge (0), 0]
+    call unique (xi, n, uxi, idx)
+    if (.not. (n == 3 .and. all (uxi(1:3) == [-huge (0), 0, 5]) &
+            .and. all (xi(idx(1:3)) == uxi(1:3)))) &
+        error stop "UNIQUE: int32, large negative values"
+    deallocate (xi, uxi, idx)
 
 end subroutine
 

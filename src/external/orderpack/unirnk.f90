@@ -218,11 +218,9 @@ Subroutine D_unirnk (XVALT, IRNGT, NUNI)
 !  One steps in the C subset, that we create in the final rank array
 !
       JWRKT (1:LMTNA) = IRNGT (1:LMTNA)
-      If (IINDB <= NVAL) Then
-        XTST = NEARLESS (Min(XVALT(JWRKT(1)), XVALT(IRNGT(IINDB))))
-      Else
-        XTST = NEARLESS (XVALT(JWRKT(1)))
-      Endif
+!  numfort: the first merged element is always kept (NUNI == 0 below)
+!  instead of comparing against a NEARLESS sentinel, which breaks under
+!  flush-to-zero (min value 0) and overflows for integer min value.
       Do IWRK = 1, NVAL
 !
 !  We still have unprocessed values in both A and B
@@ -249,7 +247,11 @@ Subroutine D_unirnk (XVALT, IRNGT, NUNI)
 !
             IRNG = IRNGT (IWRK)
          End If
-         If (XVALT(IRNG) > XTST) Then
+         If (NUNI == 0) Then
+            XTST = XVALT (IRNG)
+            NUNI = 1
+            IRNGT (1) = IRNG
+         Else If (XVALT(IRNG) > XTST) Then
             XTST = XVALT (IRNG)
             NUNI = NUNI + 1
             IRNGT (NUNI) = IRNG
@@ -466,11 +468,9 @@ Subroutine R_unirnk (XVALT, IRNGT, NUNI)
 !  One steps in the C subset, that we create in the final rank array
 !
       JWRKT (1:LMTNA) = IRNGT (1:LMTNA)
-      If (IINDB <= NVAL) Then
-        XTST = NEARLESS (Min(XVALT(JWRKT(1)), XVALT(IRNGT(IINDB))))
-      Else
-        XTST = NEARLESS (XVALT(JWRKT(1)))
-      Endif
+!  numfort: the first merged element is always kept (NUNI == 0 below)
+!  instead of comparing against a NEARLESS sentinel, which breaks under
+!  flush-to-zero (min value 0) and overflows for integer min value.
       Do IWRK = 1, NVAL
 !
 !  We still have unprocessed values in both A and B
@@ -497,7 +497,11 @@ Subroutine R_unirnk (XVALT, IRNGT, NUNI)
 !
             IRNG = IRNGT (IWRK)
          End If
-         If (XVALT(IRNG) > XTST) Then
+         If (NUNI == 0) Then
+            XTST = XVALT (IRNG)
+            NUNI = 1
+            IRNGT (1) = IRNG
+         Else If (XVALT(IRNG) > XTST) Then
             XTST = XVALT (IRNG)
             NUNI = NUNI + 1
             IRNGT (NUNI) = IRNG
@@ -713,11 +717,9 @@ Subroutine I_unirnk (XVALT, IRNGT, NUNI)
 !  One steps in the C subset, that we create in the final rank array
 !
       JWRKT (1:LMTNA) = IRNGT (1:LMTNA)
-      If (IINDB <= NVAL) Then
-        XTST = NEARLESS (Min(XVALT(JWRKT(1)), XVALT(IRNGT(IINDB))))
-      Else
-        XTST = NEARLESS (XVALT(JWRKT(1)))
-      Endif
+!  numfort: the first merged element is always kept (NUNI == 0 below)
+!  instead of comparing against a NEARLESS sentinel, which breaks under
+!  flush-to-zero (min value 0) and overflows for integer min value.
       Do IWRK = 1, NVAL
 !
 !  We still have unprocessed values in both A and B
@@ -744,7 +746,11 @@ Subroutine I_unirnk (XVALT, IRNGT, NUNI)
 !
             IRNG = IRNGT (IWRK)
          End If
-         If (XVALT(IRNG) > XTST) Then
+         If (NUNI == 0) Then
+            XTST = XVALT (IRNG)
+            NUNI = 1
+            IRNGT (1) = IRNG
+         Else If (XVALT(IRNG) > XTST) Then
             XTST = XVALT (IRNG)
             NUNI = NUNI + 1
             IRNGT (NUNI) = IRNG
