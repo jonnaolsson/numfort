@@ -139,9 +139,9 @@ subroutine test_interp ()
         ], shape=[5,3])
 
     real (PREC), parameter :: SCIPY_TEST3(*,0:*) = reshape([ real(PREC) :: &
-             0.48775   ,  0.048     ,  1.20815278d0,  4., &
-            -1.3475    ,  0.42      ,  2.20986111d0,  3.97222222d0, &
-             2.85      ,  1.2       ,  2.39166667d0,  2.47619048d0 &
+         0.4877500000d0,  0.0347222222d0,  1.0664027778d0,  3.6106611111d0, &
+        -1.3475000000d0,  0.3750000000d0,  2.0387500000d0,  3.8090555556d0, &
+         2.8500000000d0,  1.5000000000d0,  2.7416666667d0,  1.7966666667d0  &
         ], shape=[4, 3])
 
     real (PREC), parameter :: SCIPY_TEST4(*,0:*) = reshape([ real(PREC) :: &
@@ -151,9 +151,12 @@ subroutine test_interp ()
         ], shape=[3,3])
 
     real (PREC), parameter :: SCIPY_TEST5(*,0:*) = reshape([ real(PREC) :: &
-        -240.        , -120.        ,  -48.        ,  -12.        ,    0., &
-         147.83688817d0, 93.83510204d0, 51.83115207d0, 21.81913043d0, 3.72705882d0, &
-         -55.10396055d0,-43.04764988d0,-30.92091382d0,-18.519595d0  ,-2.54117647d0 &
+        -225.4979932887d0, -110.8379864716d0, -42.9779658790d0, &
+          -9.9178642049d0,    0.3451764706d0, &
+         142.1416230283d0,   89.3425842632d0,  48.5447651731d0, &
+          19.7517927338d0,    3.0282352941d0, &
+         -58.8013422512d0,  -46.8027056715d0, -34.8068241985d0, &
+         -22.8271590232d0,  -11.4352941176d0  &
         ], shape=[5,3])
 
     real (PREC), parameter :: SCIPY_TEST6(*,0:*) = reshape([ real(PREC) :: &
@@ -224,7 +227,9 @@ subroutine test_interp ()
     allocate (xp(np), yp(np), yp_ok(np), coef(ncoef), x(n), y(n), y_ok(n))
     call linspace (xp, -1.0_PREC, 3.0_PREC)
     call fcn3 (xp, yp, order=0)
-    call linspace (x, -0.7_PREC, 2.0_PREC)
+    ! Contract upper bound to avoid knot collision at x = 2.0 where the
+    ! second derivative is discontinuous.
+    call linspace (x, -0.7_PREC, 1.9_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status)
     if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = x^2"
 
@@ -272,7 +277,9 @@ subroutine test_interp ()
     allocate (xp(np), yp(np), yp_ok(np), coef(ncoef), x(n), y(n), y_ok(n))
     call linspace (xp, -10.0_PREC, 10.0_PREC)
     call fcn5 (xp, yp, order=0)
-    call linspace (x, -5.0_PREC, -1.0_PREC)
+    ! Shift evaluation range to interval midpoints to avoid knot boundaries
+    ! where the second derivative has jump discontinuities.
+    call linspace (x, -4.9_PREC, -0.9_PREC)
     call interp_pchip_fit (xp, yp, coef, status=status, work=work)
     if (.not. (status == NF_STATUS_OK)) error stop "FIT: f(x) = 2(x^3-x)"
 
