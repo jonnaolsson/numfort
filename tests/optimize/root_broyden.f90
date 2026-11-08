@@ -29,6 +29,7 @@ subroutine test_all ()
     call test_maxiter ()
     call test_invalid_residual ()
     call test_update_breakdown ()
+    call test_initial_root ()
 
 end subroutine
 
@@ -373,6 +374,86 @@ subroutine test_update_breakdown ()
 end subroutine
 
 
+subroutine test_initial_root ()
+    !*  Test that Broyden does not return arbitrary/stale inverse Jacobians when
+    !   exiting at the initial root (nit=0) or on early failures (Issue #25).
+    !
+    !   Verifies that res%jac_inv remains unallocated unless a valid inverse was
+    !   explicitly supplied by caller, counters (nit, nfev) are initialized, and
+    !   reused workspace scratch contents are never leaked into the result.
+
+    type (optim_result) :: res
+    type (workspace) :: work
+    real (PREC), dimension(1) :: x, fx_eval
+    real (PREC), dimension(1,1) :: jac_inv_init
+    logical :: lres
+
+    ! Case 1: Exact initial root with fresh workspace, no jac_inv_init
+    ! f(x) = x - 1 evaluated at x = 1 yields |f(1)| = 0 < tol.
+    ! Broyden exits at iteration 0 (fast early convergence).
+    ! Inverse Jacobian must remain unallocated rather than advertising scratch memory.
+    x = [1.0_PREC]
+    call root_broyden (root_fcn, x, ndiff=.true., res=res)
+    call root_fcn (res%x, fx_eval)
+
+    lres = res%success .and. (res%status == NF_STATUS_OK) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (abs (res%x(1) - 1.0_PREC) < 1.0e-12_PREC) &
+        .and. (res%fx(1) == fx_eval(1)) .and. (abs (fx_eval(1)) < 1.0e-12_PREC) &
+        .and. (.not. allocated (res%jac_inv))
+    if (.not. lres) error stop "Exact initial root; fresh workspace; no jac_inv"
+
+    ! Case 2: Exact initial root with reused workspace pre-filled with sentinels
+    ! Pre-fill workspace storage with 12345.0 to detect any stale-memory leak.
+    call assert_alloc (work, nrwrk=100)
+    work%rwrk = 12345.0_PREC
+    x = [1.0_PREC]
+    call root_broyden (root_fcn, x, ndiff=.true., work=work, res=res)
+
+    lres = res%success .and. (res%status == NF_STATUS_OK) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (abs (res%x(1) - 1.0_PREC) < 1.0e-12_PREC) &
+        .and. (.not. allocated (res%jac_inv))
+    if (.not. lres) error stop "Exact initial root; reused workspace with sentinels"
+
+    ! Case 3: Exact initial root with caller-supplied valid inverse Jacobian
+    ! When caller explicitly provides jac_inv_init, it must be preserved and returned
+    ! in res%jac_inv even when exiting at the initial root.
+    jac_inv_init(1,1) = 2.0_PREC
+    x = [1.0_PREC]
+    call root_broyden (root_fcn, x, ndiff=.true., jac_inv_init=jac_inv_init, res=res)
+
+    lres = res%success .and. (res%status == NF_STATUS_OK) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (abs (res%x(1) - 1.0_PREC) < 1.0e-12_PREC) &
+        .and. (allocated (res%jac_inv)) &
+        .and. (abs (res%jac_inv(1,1) - 2.0_PREC) < 1.0e-12_PREC)
+    if (.not. lres) error stop "Exact initial root; caller-supplied jac_inv_init"
+
+    ! Case 4: Early failure before inverse construction (invalid initial residual)
+    ! f(x) returns NaN at initial point; must exit with NF_STATUS_INVALID_STATE,
+    ! nit=0, nfev=1, and unallocated jac_inv.
+    x = [0.0_PREC]
+    call root_broyden (nan_initial_fcn, x, ndiff=.true., work=work, res=res)
+
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_INVALID_STATE) &
+        .and. (res%nit == 0) .and. (res%nfev == 1) &
+        .and. (.not. allocated (res%jac_inv))
+    if (.not. lres) error stop "Early failure; invalid initial residual"
+
+    ! Case 5: Early failure on invalid argument before workspace allocation
+    ! Invalid maxiter must set NF_STATUS_INVALID_ARG with initialized nit=0 and nfev=0.
+    x = [1.0_PREC]
+    call root_broyden (root_fcn, x, ndiff=.true., maxiter=-1, res=res)
+
+    lres = (.not. res%success) .and. (res%status == NF_STATUS_INVALID_ARG) &
+        .and. (res%nit == 0) .and. (res%nfev == 0) &
+        .and. (.not. allocated (res%jac_inv))
+    if (.not. lres) error stop "Early failure; invalid argument"
+
+end subroutine
+
+
 subroutine nan_residual_fcn (x, fx)
     real (PREC), intent(in), dimension(:), contiguous :: x
     real (PREC), intent(out), dimension(:), contiguous :: fx
@@ -430,6 +511,24 @@ subroutine secant_breakdown_fcn (x, fx)
     ! f1 is constant 1.0; f2 changes as 1.0 - x(1).
     fx(1) = 1.0_PREC
     fx(2) = 1.0_PREC - x(1)
+end subroutine
+
+
+subroutine root_fcn (x, fx)
+    real (PREC), intent(in), dimension(:), contiguous :: x
+    real (PREC), intent(out), dimension(:), contiguous :: fx
+
+    ! Linear root function f(x) = x - 1
+    fx(1) = x(1) - 1.0_PREC
+end subroutine
+
+
+subroutine nan_initial_fcn (x, fx)
+    real (PREC), intent(in), dimension(:), contiguous :: x
+    real (PREC), intent(out), dimension(:), contiguous :: fx
+
+    ! Always returns quiet NaN
+    if (size (x) > 0) fx(1) = ieee_value (0.0_PREC, ieee_quiet_nan)
 end subroutine
 
 

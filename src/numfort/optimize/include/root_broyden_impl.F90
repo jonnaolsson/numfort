@@ -277,7 +277,7 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
     real (PREC), dimension(:,:), pointer, contiguous :: jac, jac_inv
     real (PREC), dimension(:), pointer, contiguous :: rwork_inv
     integer, dimension(:), pointer, contiguous :: iwork_inv
-    logical :: has_jac_inv
+    logical :: has_jac_inv, jac_inv_valid
 
     type (workspace), pointer :: ptr_work
     type (optim_result), pointer :: ptr_res
@@ -290,6 +290,10 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
     integer :: lda, m
     
     status = NF_STATUS_OK
+    ! Outer iteration counter (nit) reported in result
+    k = 0
+    ! Tracks whether jac_inv holds a valid caller-supplied or computed inverse
+    jac_inv_valid = .false.
 
     nullify (ptr_work, ptr_res)
     nullify (fx, fxlast, dx, dfx)
@@ -396,16 +400,36 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
         print '(tr1, a)', "ROOT_BROYDEN: routine start"
     end if
 
+    has_jac_inv = present (jac_inv_init)
+    if (has_jac_inv) then
+        ! TODO: check whether initial step size implied by Jacobian is smaller than
+        ! xtol, otherwise no point in even trying.
+        has_jac_inv = all (ieee_is_finite (jac_inv_init)) &
+            .and. any (abs (jac_inv_init) > 1.0e-3_PREC)
+    end if
+
+    if (has_jac_inv) then
+        jac_inv(:,:) = jac_inv_init
+        jac_inv_valid = .true.
+        if (iand(liprint, PRINT_JAC) == PRINT_JAC) then
+            print '(tr1, a)', "ROOT_BROYDEN: Using caller-provided initial inverse Jacobian"
+            do i = 1, n
+                print 200, "", jac_inv(i,:)
+            end do
+        end if
+    end if
+
     call dispatch (fcn, x, fxlast)
 
     if (.not. all(ieee_is_finite(fxlast))) then
-        ptr_res%msg = 'Invalid function value encountered'
+        ptr_res%msg = "Invalid function value encountered"
         status = NF_STATUS_INVALID_STATE
+        jac_inv_valid = .false.
         goto 100
     end if
 
     ! Check whether initial point satisfied convergence criterion
-    nrm_last = norm2(fxlast)
+    nrm_last = norm2 (fxlast)
 
     if (liprint /= PRINT_NONE) then
         print '(tr1, a)', "ROOT_BROYDEN: initial values"
@@ -415,34 +439,18 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
     end if
 
     if (nrm_last < ltol) then
-        ptr_res%msg = 'Convergence achieved, func. value smaller than tol'
+        ptr_res%msg = "Convergence achieved, func. value smaller than tol"
         status = NF_STATUS_OK
         goto 100
     end if
 
-    has_jac_inv = present (jac_inv_init)
-    if (has_jac_inv) then
-        ! TODO: check whether initial step size implied by Jacobian is smaller than
-        ! xtol, otherwise no point in even trying.
-        has_jac_inv = all (ieee_is_finite (jac_inv_init)) &
-            .and. any (abs(jac_inv_init) > 1.0e-3_PREC)
-    end if
-
-    if (has_jac_inv) then
-        jac_inv(:,:) = jac_inv_init
-        if (iand(liprint, PRINT_JAC) == PRINT_JAC) then
-            print '(tr1, a)', "ROOT_BROYDEN: Using caller-provided initial inverse Jacobian"
-            do i = 1, n
-                print 200, "", jac_inv(i,:)
-            end do
-        end if
-    else
+    if (.not. has_jac_inv) then
         ! Compute Jacobian at initial point. Reuse f(X) evaluated above in
         ! case of numerical differentiation.
         call dispatch_jac (fcn, x, jac, fxlast)
 
         if (.not. all(ieee_is_finite(jac))) then
-            ptr_res%msg = 'Invalid value in initial Jacobian encountered'
+            ptr_res%msg = "Invalid value in initial Jacobian encountered"
             status = NF_STATUS_INVALID_STATE
             goto 100
         end if
@@ -460,6 +468,8 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
             ptr_res%msg = "Could not invert initial Jacobian"
             goto 100
         end if
+
+        jac_inv_valid = .true.
     end if
 
    do k = 1, lmaxiter
@@ -613,8 +623,13 @@ recursive subroutine root_broyden_impl (fcn, x, tol, xtol, &
 100 continue
 
     if (present(res)) then
-        call result_update (ptr_res, x, fxlast, jac_inv=jac_inv, &
-            status=status, nit=k, nfev=fcn%nfev)
+        if (jac_inv_valid) then
+            call result_update (ptr_res, x, fxlast, jac_inv=jac_inv, &
+                status=status, nit=k, nfev=fcn%nfev)
+        else
+            call result_update (ptr_res, x, fxlast, &
+                status=status, nit=k, nfev=fcn%nfev)
+        end if
     end if
 
     ! Clean up local WORKSPACE object if none was passed by client code
