@@ -245,9 +245,9 @@ subroutine test_rouwenhorst_degenerate ()
 
     ! An iid process also collapses to the same singleton distribution.
     call rouwenhorst (0.0_PREC, 0.3_PREC, states, tm, status=status)
-    if (status /= NF_STATUS_OK) error stop "Iid singleton Rouwenhorst failed"
-    if (states(1) /= 0.0_PREC) error stop "Iid singleton state must be zero"
-    if (tm(1,1) /= 1.0_PREC) error stop "Iid singleton transition must be one"
+    if (status /= NF_STATUS_OK) error stop "IID singleton Rouwenhorst failed"
+    if (states(1) /= 0.0_PREC) error stop "IID singleton state must be zero"
+    if (tm(1,1) /= 1.0_PREC) error stop "IID singleton transition must be one"
 
     ! Singleton inputs bypass scale calculations and parameter validation.
     call rouwenhorst (1.0_PREC, -0.3_PREC, states, tm, status=status)
@@ -305,7 +305,7 @@ subroutine test_rouwenhorst_binomial ()
     real (PREC), parameter :: SIGMA = 0.3_PREC, TOL = 1.0e-13_PREC
     real (PREC), parameter :: RHO(*) = [ &
         0.9_PREC, & ! Persistent shocks have positive lag-one covariance.
-        0.0_PREC, & ! Iid shocks have zero lag-one covariance.
+        0.0_PREC, & ! IID shocks have zero lag-one covariance.
         -0.6_PREC] ! Alternating shocks have negative lag-one covariance.
     ! Four independent Bernoulli(1/2) states give C(4,k) / 2**4, k = 0,...,4.
     real (PREC), parameter :: WEIGHTS(*) = &
