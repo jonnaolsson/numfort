@@ -1,16 +1,23 @@
 
 
 subroutine gini_impl (x, pmf, g, assume_sorted)
-    !*  GINI returns the Gini coefficient for a discrete probabability distribution
-    !   over states X with given PMF.
+    !* Return the Gini coefficient for a discrete probability distribution.
     !
-    !   The formula used follows Wikipedia
-    !   https://en.wikipedia.org/wiki/Gini_coefficient#Discrete_probability_distribution
+    ! For nonzero mean, G = sum_i sum_j p_i p_j abs(x_i-x_j) / (2 * mean).
+    ! Signed support is allowed; the coefficient need not lie in [0, 1].
+    ! All-zero occupied support has G = 0, regardless of empty bins.
+    ! A zero mean with nonzero occupied support is undefined and returns a
+    ! quiet NaN. Empty arrays, mismatched sizes, and zero total mass also
+    ! return a quiet NaN.
     !
     real (PREC), intent(in), dimension(:), contiguous, target :: x
+        !* Finite support values, with one entry per probability.
     real (PREC), intent(in), dimension(:), contiguous, target :: pmf
+        !* Finite, nonnegative probabilities that sum to one; zero entries are allowed.
     real (PREC), intent(out) :: g
+        !* Gini coefficient, or a quiet NaN when undefined.
     logical, intent(in), optional :: assume_sorted
+        !* Whether X is already in ascending order. Defaults to false.
 
     integer, dimension(:), allocatable :: iorder
     real (PREC), dimension(:), allocatable, target :: x_sort, pmf_sort
@@ -24,22 +31,14 @@ subroutine gini_impl (x, pmf, g, assume_sorted)
 
     if (present(assume_sorted)) lassume_sorted = assume_sorted
 
-    g = ieee_value (0.0_PREC, IEEE_SIGNALING_NAN)
+    g = ieee_value (0.0_PREC, IEEE_QUIET_NAN)
 
     n = size (x)
-    if (size(x) /= size (pmf)) return
-
-    if (n == 1) then
-        ! For degenerate distributions the Gini must be 0.
-        ! Take a short-cut as this also avoids issues if size(x) = 1 and x(1) = 0,
-        ! as then the formula below returns NaN.
-        g = 0.0
-        return
-    end if
+    if (n == 0 .or. n /= size (pmf)) return
 
     ! --- Ensure sorted inputs ---
 
-    if (assume_sorted) then
+    if (lassume_sorted) then
         ! Arrays are already sorted, point to dummy arguments
         ptr_x => x
         ptr_pmf => pmf
@@ -61,15 +60,23 @@ subroutine gini_impl (x, pmf, g, assume_sorted)
 
     ! --- Compute Gini ---
 
-    g = 0.0
-    s1 = 0.0
-    s2 = 0.0
+    g = 0.0_PREC
+    s1 = 0.0_PREC
+    s2 = 0.0_PREC
 
     do i = 1, n
         s2 = s1 + ptr_x(i) * ptr_pmf(i)
         g = g + (s1 + s2) * ptr_pmf(i)
         s1 = s2
     end do
+
+    if (s2 == 0.0_PREC) then
+        ! Distinguish zero occupied support from cancellation of signed values.
+        g = ieee_value (0.0_PREC, IEEE_QUIET_NAN)
+        if (any (pmf > 0.0_PREC) &
+            .and. all (x == 0.0_PREC .or. pmf == 0.0_PREC)) g = 0.0_PREC
+        return
+    end if
 
     g = 1.0_PREC - g / s2
 
