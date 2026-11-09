@@ -67,11 +67,16 @@ SUBROUTINE minim(p, step, nop, func, maxfn, iprint, stopcr, nloop, iquad,  &
 !                 = 2 IF INFORMATION MATRIX IS NOT +VE SEMI-DEFINITE
 !                 = 3 IF NOP < 1
 !                 = 4 IF NLOOP < 1
+!                 = 5 IF SEARCH CONVERGED BUT QUADRATIC FIT IS UNAVAILABLE
+!                 = 6 IF A SEARCH POINT OR FUNCTION VALUE IS NOT FINITE
 
 !     N.B. P, STEP AND VAR (IF IQUAD = 1) MUST HAVE DIMENSION AT LEAST NOP
 !          IN THE CALLING PROGRAM.
 
 !*****************************************************************************
+
+USE, INTRINSIC :: ieee_arithmetic, ONLY: ieee_is_finite
+IMPLICIT NONE
 
 INTEGER, INTENT(IN)        :: nop, maxfn, iprint, nloop, iquad
 INTEGER, INTENT(OUT)       :: ifault
@@ -87,11 +92,12 @@ CONTIGUOUS :: p
 REAL (PREC)   :: g(nop+1,nop), h(nop+1), pbar(nop), pstar(nop), pstst(nop), &
                aval(nop), pmin(nop), temp(nop), bmat(nop*(nop+1)/2),  &
                vc(nop*(nop+1)/2), ymin, rmax, hstst, a0, hmin, test, hmean, &
-               hstd, hstar, hmax, savemn
+               hstd, hstar, hmax, savemn, bestp(nop), bestf, previous
+LOGICAL :: fitting
 
 REAL (PREC), PARAMETER :: zero = 0._PREC, half = 0.5_PREC, one = 1._PREC, two = 2._PREC
 INTEGER     :: i, i1, i2, iflag, ii, ij, imax, imin, irank, irow, j, j1, jj, &
-               k, l, loop, nap, neval, nmore, np1, nullty
+               k, l, loop, nap, neval, nmore, np1, nullty, nflat
 
 !     A = REFLECTION COEFFICIENT, B = CONTRACTION COEFFICIENT, AND
 !     C = EXPANSION COEFFICIENT.
@@ -109,6 +115,11 @@ IF (iprint > 0) WRITE (lout,5000) iprint
 !     CHECK INPUT ARGUMENTS
 
 ifault = 0
+func = HUGE(one)
+var = zero
+bestp = p
+bestf = func
+fitting = .FALSE.
 IF (nop <= 0) ifault = 3
 IF (nloop <= 0) ifault = 4
 IF (ifault /= 0) RETURN
@@ -124,13 +135,15 @@ savemn = 0.0
 !     IF NAP = 0 EVALUATE FUNCTION AT THE STARTING POINT AND RETURN
 
 IF (nap <= 0) THEN
-  CALL functn(p,func)
+  IF (.NOT. evaluate(p,func)) GO TO 800
   RETURN
 END IF
 
 !     SET UP THE INITIAL SIMPLEX
 
-20 g(1,:) = p
+20 fitting = .FALSE.
+ifault = 0
+g(1,:) = p
 irow = 2
 DO i = 1, nop
   IF (step(i) /= zero) THEN
@@ -143,8 +156,7 @@ END DO
 np1 = nap + 1
 DO i = 1, np1
   p = g(i,:)
-  CALL functn(p,h(i))
-  neval = neval + 1
+  IF (.NOT. evaluate(p,h(i))) GO TO 800
   IF (iprint > 0) THEN
     WRITE (lout,5100) neval, h(i), p
   END IF
@@ -186,8 +198,7 @@ Main_loop: DO
 !     HSTAR = FUNCTION VALUE AT PSTAR.
 
   pstar = a * (pbar - g(imax,:)) + pbar
-  CALL functn(pstar,hstar)
-  neval = neval + 1
+  IF (.NOT. evaluate(pstar,hstar)) GO TO 800
   IF (iprint > 0) THEN
     IF (MOD(neval,iprint) == 0) WRITE (lout,5100) neval, hstar, pstar
   END IF
@@ -197,8 +208,7 @@ Main_loop: DO
 
   IF (hstar < hmin) THEN
     pstst = c * (pstar - pbar) + pbar
-    CALL functn(pstst,hstst)
-    neval = neval + 1
+    IF (.NOT. evaluate(pstst,hstst)) GO TO 800
     IF (iprint > 0) THEN
       IF (MOD(neval,iprint) == 0) WRITE (lout,5100) neval, hstst, pstst
     END IF
@@ -243,8 +253,7 @@ Main_loop: DO
 !     HSTST = FUNCTION VALUE AT PSTST.
 
   pstst = b * g(imax,:) + (one-b) * pbar
-  CALL functn(pstst,hstst)
-  neval = neval + 1
+  IF (.NOT. evaluate(pstst,hstst)) GO TO 800
   IF (iprint > 0) THEN
     IF (MOD(neval,iprint) == 0) WRITE (lout,5100) neval, hstst, pstst
   END IF
@@ -268,8 +277,7 @@ Main_loop: DO
         IF (step(j) /= zero) g(i,j) = (g(i,j) + g(imin,j)) * half
         p(j) = g(i,j)
       END DO
-      CALL functn(p,h(i))
-      neval = neval + 1
+      IF (.NOT. evaluate(p,h(i))) GO TO 800
       IF (iprint > 0) THEN
         IF (MOD(neval,iprint) == 0) WRITE (lout,5100) neval, h(i), p
       END IF
@@ -290,7 +298,7 @@ Main_loop: DO
 !     IF THE RMS > STOPCR, SET IFLAG & LOOP TO ZERO AND GO TO THE
 !     START OF THE MAIN CYCLE AGAIN.
 
-  IF (hstd > stopcr .AND. neval <= maxfn) THEN
+  IF (hstd > stopcr) THEN
     iflag = 0
     loop = 0
     CYCLE Main_loop
@@ -303,23 +311,9 @@ Main_loop: DO
       p(i) = SUM( g(1:np1,i) ) / np1
     END IF
   END DO
-  CALL functn(p,func)
-  neval = neval + 1
+  IF (.NOT. evaluate(p,func)) GO TO 800
   IF (iprint > 0) THEN
     IF (MOD(neval,iprint) == 0) WRITE (lout,5100) neval, func, p
-  END IF
-
-!     TEST WHETHER THE NO. OF FUNCTION VALUES ALLOWED, maxfn, HAS BEEN
-!     OVERRUN; IF SO, EXIT WITH IFAULT = 1.
-
-  IF (neval > maxfn) THEN
-    ifault = 1
-    IF (iprint < 0) RETURN
-    WRITE (lout,5200) maxfn
-    WRITE (lout,5300) hstd
-    WRITE (lout,5400) p
-    WRITE (lout,5500) func
-    RETURN
   END IF
 
 !     CONVERGENCE CRITERION SATISFIED.
@@ -353,6 +347,7 @@ IF (iquad <= 0) RETURN
 
 !     QUADRATIC SURFACE FITTING
 
+fitting = .TRUE.
 IF (iprint >= 0) WRITE (lout,6000)
 
 !     EXPAND THE FINAL SIMPLEX, IF NECESSARY, TO OVERCOME ROUNDING
@@ -361,21 +356,42 @@ IF (iprint >= 0) WRITE (lout,6000)
 hmin = func
 nmore = 0
 DO i = 1, np1
+  nflat = 0
   DO
     test = ABS(h(i)-func)
-    IF (test < simp) THEN
-      DO j = 1, nop
-        IF (step(j) /= zero) g(i,j) = (g(i,j)-p(j)) + g(i,j)
-        pstst(j) = g(i,j)
-      END DO
-      CALL functn(pstst,h(i))
-      nmore = nmore + 1
-      neval = neval + 1
-      IF (h(i) >= hmin) CYCLE
+    IF (test >= simp) EXIT
+
+    ! Limit consecutive unchanged probes, allowing for rounding near a minimum.
+    ! Changing values can keep expanding for very shallow identifiable quadratics.
+    IF (nflat >= DIGITS(one)) THEN
+      ifault = 5
+      GO TO 800
+    END IF
+    ! Reserve headroom for 2*g-p before forming the expanded coordinates.
+    IF (ANY(ABS(g(i,:)) > HUGE(one)/4) .OR. ANY(ABS(p) > HUGE(one)/4)) THEN
+      ifault = 5
+      GO TO 800
+    END IF
+    pstst = g(i,:)
+    DO j = 1, nop
+      IF (step(j) /= zero) pstst(j) = (g(i,j)-p(j)) + g(i,j)
+    END DO
+    IF (.NOT. ALL(ieee_is_finite(pstst)) .OR. ALL(pstst == g(i,:))) THEN
+      ifault = 5
+      GO TO 800
+    END IF
+    previous = h(i)
+    IF (.NOT. evaluate(pstst,h(i))) GO TO 800
+    g(i,:) = pstst
+    nmore = nmore + 1
+    IF (h(i) == previous) THEN
+      nflat = nflat + 1
+    ELSE
+      nflat = 0
+    END IF
+    IF (h(i) < hmin) THEN
       hmin = h(i)
       IF (iprint >= 0) WRITE (lout,5100) neval, hmin, pstst
-    ELSE
-      EXIT
     END IF
   END DO
 END DO
@@ -384,10 +400,9 @@ END DO
 
 DO i = 1, nap
   i1 = i + 1
-  pstar = (g(1,:) + g(i1,:)) * half
-  CALL functn(pstar,aval(i))
+  pstar = half * g(1,:) + half * g(i1,:)
+  IF (.NOT. evaluate(pstar,aval(i))) GO TO 800
   nmore = nmore + 1
-  neval = neval + 1
 END DO
 
 !     THE MATRIX OF ESTIMATED SECOND DERIVATIVES IS CALCULATED AND ITS
@@ -399,10 +414,9 @@ DO i = 1, nap
   i2 = i + 1
   DO j = 1, i1
     j1 = j + 1
-    pstst = (g(i2,:) + g(j1,:)) * half
-    CALL functn(pstst,hstst)
+    pstst = half * g(i2,:) + half * g(j1,:)
+    IF (.NOT. evaluate(pstst,hstst)) GO TO 800
     nmore = nmore + 1
-    neval = neval + 1
     l = i * (i-1) / 2 + j
     bmat(l) = two * (hstst + a0 - aval(i) - aval(j))
   END DO
@@ -438,15 +452,22 @@ END DO
 
 !     INVERT BMAT
 
+IF (.NOT. ALL(ieee_is_finite(bmat))) THEN
+  ifault = 5
+  GO TO 800
+END IF
 CALL syminv(bmat, nap, bmat, temp, nullty, ifault, rmax)
 IF (ifault == 0) THEN
+  IF (nullty > 0 .OR. .NOT. ALL(ieee_is_finite(bmat))) THEN
+    ifault = 5
+    GO TO 800
+  END IF
   irank = nap - nullty
 ELSE                                 ! BMAT not +ve definite
                                      ! Resume search for the minimum
   IF (iprint >= 0) WRITE (lout,6100)
   ifault = 2
-  IF (neval > maxfn) RETURN
-  WRITE (lout,6200)
+  IF (iprint >= 0) WRITE (lout,6200)
   step = half * step
   GO TO 20
 END IF
@@ -550,10 +571,17 @@ CALL print_tri_matrix(vc, nop, lout)
 WRITE (lout,6900) nmore
 RETURN
 
+!     Return the best finite evaluated point on an incomplete search or fit.
+
+800 p = bestp
+func = bestf
+IF (iprint >= 0 .AND. ifault == 1) WRITE (lout,5200) maxfn
+RETURN
+
 5000 FORMAT (' Progress Report every',i4,' function evaluations'/  &
              ' EVAL.   FUNC.VALUE.          PARAMETER VALUES')
 5100 FORMAT (/' ', i4, '  ', g12.5, '  ', 5G11.4, 3(/t22, 5G11.4))
-5200 FORMAT (' No. of function evaluations > ',i5)
+5200 FORMAT (' Function evaluation limit reached: ',i5)
 5300 FORMAT (' RMS of function values of last simplex =', g14.6)
 5400 FORMAT (' Centroid of last simplex =',4(/' ', 6G13.5))
 5500 FORMAT (' Function value at centroid =', g14.6)
@@ -579,6 +607,34 @@ RETURN
 6700 FORMAT (' INFORMATION MATRIX:-'/)
 6800 FORMAT (/' CORRELATION MATRIX:-')
 6900 FORMAT (/' A further',i4,' function evaluations have been used'/)
+
+CONTAINS
+
+LOGICAL FUNCTION evaluate(point, value) RESULT(ok)
+    !* Evaluate within the callback budget and save the best finite result.
+    REAL (PREC), INTENT(IN), CONTIGUOUS :: point(:)
+        !* Candidate coordinates.
+    REAL (PREC), INTENT(OUT) :: value
+        !* Objective value, if the callback succeeds.
+
+    ok = .FALSE.
+    IF (neval >= maxfn) THEN
+        ifault = 1
+        RETURN
+    END IF
+    ifault = 6
+    IF (fitting) ifault = 5
+    IF (.NOT. ALL(ieee_is_finite(point))) RETURN
+    CALL functn(point,value)
+    neval = neval + 1
+    IF (.NOT. ieee_is_finite(value)) RETURN
+    IF (neval == 1 .OR. value < bestf) THEN
+        bestp = point
+        bestf = value
+    END IF
+    ifault = 0
+    ok = .TRUE.
+END FUNCTION
 
 END SUBROUTINE minim
 
