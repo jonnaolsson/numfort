@@ -1,5 +1,7 @@
 numfort_add_test(interpolate_concon concon.f90)
 numfort_add_test(interpolate_curfit curfit.f90)
 numfort_add_test(interpolate_linear linear.f90)
+numfort_add_test(interpolate_linear_cached linear_cached.f90)
 numfort_add_test(interpolate_pchip pchip.f90)
 numfort_add_test(interpolate_search search.f90)
+numfort_add_test(interpolate_search_cached search_cached.f90)
