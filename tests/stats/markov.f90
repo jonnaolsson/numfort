@@ -149,42 +149,6 @@ subroutine test_truncate_trans_matrix ()
 end subroutine
 
 
-subroutine test_is_trans_matrix_orientation ()
-    !* - Check asymmetric matrices in both orientations and the singleton case.
-    !  - Use square, nonempty fixtures; malformed shapes remain outside scope.
-
-    real (PREC) :: mat(2,2), singleton(1,1)
-
-    ! Rows sum to one; columns sum to 7/8 and 9/8, respectively.
-    mat(1,:) = [0.75_PREC, 0.25_PREC]
-    mat(2,:) = [0.125_PREC, 0.875_PREC]
-    if (.not. is_trans_matrix (mat)) &
-        error stop "Default orientation rejected a row-stochastic matrix"
-    if (.not. is_trans_matrix (mat, transposed=.false.)) &
-        error stop "Row orientation rejected a row-stochastic matrix"
-    if (is_trans_matrix (mat, transposed=.true.)) &
-        error stop "Column orientation accepted a row-stochastic matrix"
-
-    ! Columns sum to one; rows sum to 7/8 and 9/8, respectively.
-    mat(1,:) = [0.75_PREC, 0.125_PREC]
-    mat(2,:) = [0.25_PREC, 0.875_PREC]
-    if (.not. is_trans_matrix (mat, transposed=.true.)) &
-        error stop "Column orientation rejected a column-stochastic matrix"
-    if (is_trans_matrix (mat, transposed=.false.)) &
-        error stop "Row orientation accepted a column-stochastic matrix"
-    if (is_trans_matrix (mat)) &
-        error stop "Default orientation accepted a column-stochastic matrix"
-
-    ! The single state stays in itself with probability one in either orientation.
-    singleton(1,1) = 1.0_PREC
-    if (.not. is_trans_matrix (singleton)) &
-        error stop "Row orientation rejected a singleton transition"
-    if (.not. is_trans_matrix (singleton, transposed=.true.)) &
-        error stop "Column orientation rejected a singleton transition"
-
-end subroutine
-
-
 subroutine test_truncate_trans_matrix_no_mass ()
     !* - Reject truncation that leaves any conditional distribution without mass.
     !  - Preserve the entire input, including when status is omitted.
@@ -257,6 +221,46 @@ subroutine test_truncate_trans_matrix_no_mass ()
     call ieee_get_flag (ieee_divide_by_zero, flag_div_zero)
     if (flag_invalid .or. flag_div_zero) &
         error stop "Rejected truncation raised an IEEE exception"
+
+end subroutine
+
+
+subroutine test_is_trans_matrix_orientation ()
+    !* - Check asymmetric matrices in both orientations and the singleton case.
+    !  - Use square, nonempty fixtures; malformed shapes remain outside scope.
+
+    real (PREC) :: mat(2,2), singleton(1,1)
+
+    ! Rows sum to one; columns sum to 7/8 and 9/8, respectively.
+    mat(1,:) = [0.75_PREC, 0.25_PREC]
+    mat(2,:) = [0.125_PREC, 0.875_PREC]
+    if (.not. is_trans_matrix (mat)) &
+        error stop "Default orientation rejected a row-stochastic matrix"
+    if (.not. is_trans_matrix (mat, transposed=.false.)) &
+        error stop "Row orientation rejected a row-stochastic matrix"
+    if (is_trans_matrix (mat, transposed=.true.)) &
+        error stop "Column orientation accepted a row-stochastic matrix"
+
+    ! Columns sum to one; rows sum to 7/8 and 9/8, respectively.
+    mat(1,:) = [0.75_PREC, 0.125_PREC]
+    mat(2,:) = [0.25_PREC, 0.875_PREC]
+    if (.not. is_trans_matrix (mat, transposed=.true.)) &
+        error stop "Column orientation rejected a column-stochastic matrix"
+    if (is_trans_matrix (mat, transposed=.false.)) &
+        error stop "Row orientation accepted a column-stochastic matrix"
+    if (is_trans_matrix (mat)) &
+        error stop "Default orientation accepted a column-stochastic matrix"
+
+    ! The single state stays in itself with probability one in either orientation.
+    singleton(1,1) = 1.0_PREC
+    if (.not. is_trans_matrix (singleton)) &
+        error stop "Row orientation rejected a singleton transition"
+    if (.not. is_trans_matrix (singleton, transposed=.true.)) &
+        error stop "Column orientation rejected a singleton transition"
+
+end subroutine
+
+
 subroutine test_is_trans_matrix_invalid ()
     !* - Reject negative probabilities even when the relevant sums equal one.
     !  - Reject one incorrect row or column among otherwise valid ones.
