@@ -6,5 +6,7 @@ foreach(precision IN ITEMS 32 64)
     target_compile_definitions(numfort_test_interpolate_linear_optional_real${precision}
         PRIVATE TEST_PREC=real${precision})
 endforeach()
+numfort_add_test(interpolate_linear_cached linear_cached.f90)
 numfort_add_test(interpolate_pchip pchip.f90)
 numfort_add_test(interpolate_search search.f90)
+numfort_add_test(interpolate_search_cached search_cached.f90)

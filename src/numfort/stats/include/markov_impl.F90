@@ -2,15 +2,18 @@
 
 
 pure function is_trans_matrix (mat, tol, transposed) result(res)
-    !*  IS_TRANS_MATRIX checks whether argument is a valid transition matrix
+    !* Check transition probabilities and row or column sums.
+    !  Matrix shape is not validated.
     real (PREC), intent(in), dimension(:,:) :: mat
         !*  Transition matrix to check
     real (PREC), intent(in), optional :: tol
-        !*  Tolerance on row sums (default: 1e-12)
+        !* Absolute tolerance on row or column sums (default: 1e-12).
+        !  The absolute deviation from one must be strictly less than TOL.
     logical, intent(in), optional :: transposed
         !*  If true, assume that transition matrix is transposed, ie. columns
         !   sum to 1.0 instead of rows.
     logical :: res
+        !* True if probabilities are nonnegative and sums satisfy the tolerance.
 
     real (PREC) :: ltol
     integer :: dim
@@ -40,47 +43,56 @@ end function
 
 
 
-subroutine truncate_trans_matrix (mat, tol, transposed)
-    !*  TRUNCATE_TRANS_MATRIX truncates low-probability transition in a
-    !   Markov transition matrix towards zero and re-normalizes the
-    !   rows or columns such that probabilities sum to 1.0.
+subroutine truncate_trans_matrix (mat, tol, transposed, status)
+    !* Truncate small transition probabilities and normalize rows or columns.
+    !  If any conditional distribution would have no positive mass left,
+    !  leave the entire matrix unchanged, including when STATUS is absent.
+
     real (PREC), intent(inout), dimension(:,:) :: mat
-        !*  Markov transition matrix with elements MAT(i,j) = Prob[x'=j | x=i]
+        !* Markov transition matrix with elements MAT(i,j) = Prob[x'=j | x=i].
     real (PREC), intent(in) :: tol
-        !*  Tolerance level for low probabilities such that all probabilities
-        !   smaller than TOL will be truncated to zero.
+        !* Probabilities strictly smaller than TOL are truncated to zero.
     logical, intent(in), optional :: transposed
-        !*  If present and true, assume that the matrix MAT is a transposed
-        !   transition matrix, ie MAT(i,j) = Prob[x'=i | x=j]
-        !   (default: false)
+        !* If true, MAT(i,j) = Prob[x'=i | x=j] and columns are normalized
+        !  (default: false).
+    type (status_t), intent(out), optional :: status
+        !* NF_STATUS_OK on success; NF_STATUS_INVALID_ARG if truncation would
+        !  leave any row (or column if TRANSPOSED) without positive mass.
 
     integer :: n, dim, i
     logical :: ltransposed
     real (PREC), dimension(:), allocatable :: rwork
 
+    if (present (status)) status = NF_STATUS_OK
+
     ltransposed = .false.
-    if (present(transposed)) ltransposed = transposed
+    if (present (transposed)) ltransposed = transposed
 
     dim = 2
     if (ltransposed) then
         dim = 1
     end if
 
-    where (mat < tol)
-        mat = 0.0
-    end where
-
-    n = size(mat,dim)
+    ! Check retained mass before modifying any entries.
+    n = size (mat, 3 - dim)
     allocate (rwork(n))
-    rwork(:) = sum(mat, dim=dim)
+    rwork(:) = sum (mat, dim=dim, mask=mat >= tol)
+    if (any (rwork <= 0.0_PREC)) then
+        if (present (status)) status = NF_STATUS_INVALID_ARG
+        return
+    end if
+
+    where (mat < tol)
+        mat = 0.0_PREC
+    end where
 
     ! Normalize such that conditional trans. probabilities sum to 1.0
     if (ltransposed) then
-        do i = 1, size(mat, 2)
+        do i = 1, size (mat, 2)
             mat(:,i) = mat(:,i) / rwork(i)
         end do
     else
-        do i = 1, size(mat, 2)
+        do i = 1, size (mat, 2)
             mat(:,i) = mat(:,i) / rwork
         end do
     end if
@@ -128,6 +140,11 @@ end subroutine
 subroutine rouwenhorst (rho, sigma, states, tm, sigma_cond, status)
     !*  ROUWENHORST returns the discretized approximation of an AR(1) process
     !   using the Rouwenhorst method.
+    !   Matching empty arrays are a successful no-op. A singleton grid has
+    !   state zero and transition probability one; rho and sigma are ignored
+    !   for both cases. With more than one state, abs(rho) < 1 and sigma >= 0
+    !   are required. Zero sigma sets every state to zero and preserves the
+    !   rho-dependent transition matrix.
     real (PREC), intent(in) :: rho
         !*  Autocorrelation coefficient
     real (PREC), intent(in) :: sigma
@@ -335,9 +352,10 @@ subroutine ergodic_dist (tm, edist, inverse, maxiter, &
     !*  ERGODIC_DIST returns the ergodic distribution implied by a given
     !   Markov transition matrix using one of two methods (see argument INVERSE).
     real (PREC), intent(in), dimension(:,:), contiguous :: tm
-        !*  Markov transition matrix.
+        !*  Nonempty, square Markov transition matrix.
     real (PREC), intent(inout), dimension(:), contiguous :: edist
-        !*  Contains ergodic distribution on successful exit
+        !*  Contains the ergodic distribution on successful exit. Unchanged
+        !   for invalid dimensions or a singular inverse system.
     logical, intent(in), optional :: inverse
         !*  If present and true, compute ergodic distribution using the
         !   "inversion" method (default: true). Otherwise, iterate on the
@@ -355,8 +373,11 @@ subroutine ergodic_dist (tm, edist, inverse, maxiter, &
         !   guess for the ergodic distribution (default: false).
         !   Only used for iterative method.
     type (workspace), intent(inout), optional, target :: work
+        !*  Optional caller-owned workspace, retained on success or failure.
     type (status_t), intent(out), optional :: status
-        !*  Exit code.
+        !*  Exit code. Invalid dimensions return NF_STATUS_INVALID_ARG.
+        !   A singular inverse system, including nonunique stationary
+        !   distributions, returns NF_STATUS_INVALID_STATE.
 
     ! Working arrays
     real (PREC), dimension(:,:), pointer, contiguous :: tm_inv, tm_T
@@ -394,7 +415,7 @@ subroutine ergodic_dist (tm, edist, inverse, maxiter, &
 
     n = size(tm, 1)
 
-    if (size(edist) /= n) then
+    if (n < 1 .or. size(tm, 2) /= n .or. size(edist) /= n) then
         lstatus = NF_STATUS_INVALID_ARG
         goto 100
     end if

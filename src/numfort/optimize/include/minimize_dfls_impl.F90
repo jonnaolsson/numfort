@@ -30,10 +30,15 @@ subroutine dfls_check_input (x, m, rhobeg, rhoend, nint, iprint, maxfev, &
     integer (NF_ENUM_KIND), parameter :: IPRINT_VALID(*) = &
         [NF_PRINT_NONE, NF_PRINT_MINIMAL, NF_PRINT_VERBOSE, NF_PRINT_ALL]
 
-    msg = ''
+    msg = ""
     status = NF_STATUS_OK
 
     n = size(x)
+
+    if (n < 2) then
+        msg = "Argument X must contain at least two variables"
+        goto 100
+    end if
 
     if (m < 1) then
         msg = 'Argument M has invalid value'
@@ -41,8 +46,8 @@ subroutine dfls_check_input (x, m, rhobeg, rhoend, nint, iprint, maxfev, &
     end if
 
     if (present(nint)) then
-        if (nint < (n+2) .or. nint > (n+1)*(n+2)/2) then
-            msg = 'Argument NINT has invalid value'
+        if (nint < n + 2 .or. nint > 2 * n + 1) then
+            msg = "Argument NINT has invalid value"
             goto 100
         end if
     end if
@@ -57,7 +62,7 @@ subroutine dfls_check_input (x, m, rhobeg, rhoend, nint, iprint, maxfev, &
     if (status /= NF_STATUS_OK) goto 100
 
     if (rhobeg < rhoend) then
-        msg = 'Invalid arguments: RHOBEG <= RHOEND required'
+        msg = "Invalid arguments: RHOEND <= RHOBEG required"
         goto 100
     end if
 
@@ -91,18 +96,21 @@ subroutine minimize_dfls (fcn, x, m, rhobeg, rhoend, nint, iprint, maxfev, &
         !   expected change to a variable.
     real (PREC), intent(in) :: rhoend
         !*  Terminal value of the trust region radius, such that
-        !   RHOBEG<=RHOEND. RHOEND should indicate the accuracy
+        !   RHOEND <= RHOBEG. RHOEND should indicate the accuracy
         !   that is required in the final values of the variables.
     integer, intent(in), optional :: nint
         !*  Number of interpolation conditions.  Value must be
-        !   in the interval [N+2,(N+1)(N+2)/2] where
+        !   in the interval [N+2,2*N+1] where
         !   N = SIZE(X)
     integer (NF_ENUM_KIND), intent(in), optional :: iprint
         !*  Option log level for diagnostic messages
     integer, intent(in), optional :: maxfev
-        !*  Optional maximum number of function evaluations
+        !*  Optional maximum number of function evaluations, including the
+        !   residual returned in RES. Exhaustion sets NF_STATUS_MAX_EVAL.
     type (workspace), intent(inout), optional :: work
     type (optim_result), intent(inout), optional :: res
+        !*  Result with the evaluated residual at X. Numerical failure sets
+        !   NF_STATUS_INVALID_STATE; only convergence sets success to true.
 
     type (fwrapper_vv) :: fcn_wrapper
 
@@ -134,18 +142,21 @@ subroutine minimize_dfls_args (fcn, x, args, m, rhobeg, rhoend, nint, iprint, &
         !   expected change to a variable.
     real (PREC), intent(in) :: rhoend
         !*  Terminal value of the trust region radius, such that
-        !   RHOBEG<=RHOEND. RHOEND should indicate the accuracy
+        !   RHOEND <= RHOBEG. RHOEND should indicate the accuracy
         !   that is required in the final values of the variables.
     integer, intent(in), optional :: nint
         !*  Number of interpolation conditions.  Value must be
-        !   in the interval [N+2,(N+1)(N+2)/2] where
+        !   in the interval [N+2,2*N+1] where
         !   N = SIZE(X)
     integer (NF_ENUM_KIND), intent(in), optional :: iprint
         !*  Option log level for diagnostic messages
     integer, intent(in), optional :: maxfev
-        !*  Optional maximum number of function evaluations
+        !*  Optional maximum number of function evaluations, including the
+        !   residual returned in RES. Exhaustion sets NF_STATUS_MAX_EVAL.
     type (workspace), intent(inout), optional :: work
     type (optim_result), intent(inout), optional :: res
+        !*  Result with the evaluated residual at X. Numerical failure sets
+        !   NF_STATUS_INVALID_STATE; only convergence sets success to true.
 
     type (fwrapper_vv) :: fcn_wrapper
 
@@ -171,11 +182,11 @@ subroutine minimize_dfls_impl (fcn, x, m, rhobeg, rhoend, nint, iprint, maxfev, 
         !   expected change to a variable.
     real (PREC), intent(in) :: rhoend
         !*  Terminal value of the trust region radius, such that
-        !   RHOBEG<=RHOEND. RHOEND should indicate the accuracy
+        !   RHOEND <= RHOBEG. RHOEND should indicate the accuracy
         !   that is required in the final values of the variables.
     integer, intent(in), optional :: nint
         !*  Number of interpolation conditions.  Value must be
-        !   in the interval [N+2,(N+1)(N+2)/2] where
+        !   in the interval [N+2,2*N+1] where
         !   N = SIZE(X)
     integer (NF_ENUM_KIND), intent(in), optional :: iprint
         !*  Option log level for diagnostic messages
@@ -184,7 +195,7 @@ subroutine minimize_dfls_impl (fcn, x, m, rhobeg, rhoend, nint, iprint, maxfev, 
     type (workspace), intent(inout), optional :: work
     type (optim_result), intent(inout), optional :: res
 
-    integer :: lmaxfev, lnint, nfev
+    integer :: lmaxfev, lnint, nfev, info
     integer (NF_ENUM_KIND) :: liprint, iprint_impl
     type (workspace), pointer :: ptr_work
     type (optim_result), pointer :: ptr_res
@@ -195,6 +206,7 @@ subroutine minimize_dfls_impl (fcn, x, m, rhobeg, rhoend, nint, iprint, maxfev, 
     real (PREC), dimension(:), allocatable :: fx
 
     status = NF_STATUS_OK
+    nfev = 0
 
     nullify (ptr_work, ptr_res, ptr_w)
 
@@ -227,21 +239,29 @@ subroutine minimize_dfls_impl (fcn, x, m, rhobeg, rhoend, nint, iprint, maxfev, 
     ! Convert IPRINT to value expected by underlying implementation
     iprint_impl = get_print_level (liprint)
 
-    call newuoa2 (fcn_wrapper, n, m, lnint, x, rhobeg, rhoend, iprint_impl, &
-        lmaxfev, nfev, ptr_w)
-
-    if (nfev > lmaxfev) then
-        status = NF_STATUS_MAX_EVAL
-    end if
-
-    ! Re(compute) the function value at the final X
     allocate (fx(m))
-    call dispatch (fcn, x, fx)
+    call newuoa2 (fcn_wrapper, n, m, lnint, x, rhobeg, rhoend, iprint_impl, &
+        lmaxfev, nfev, ptr_w, info=info, fx=fx)
+
+    select case (info)
+    case (NEWUOA_CONVERGED)
+        status = NF_STATUS_OK
+    case (NEWUOA_MAXFUN)
+        status = NF_STATUS_MAX_EVAL
+        ptr_res%msg = "Maximum number of function evaluations reached"
+    case (NEWUOA_INVALID_INPUT)
+        status = NF_STATUS_INVALID_ARG
+        ptr_res%msg = "Invalid NEWUOA input"
+    case default
+        status = NF_STATUS_INVALID_STATE
+        ptr_res%msg = "NEWUOA encountered a nonfinite value or a failed model step"
+    end select
+    status%code_orig = info
 
 100 continue
 
     if (present(res)) then
-        call result_update (ptr_res, x, fx, nit=0, nfev=fcn%nfev, status=status)
+        call result_update (ptr_res, x, fx, nit=0, nfev=nfev, status=status)
     end if
 
     ! Clean up local WORKSPACE object if none was passed by client code
