@@ -1,6 +1,11 @@
 numfort_add_test(interpolate_concon concon.f90)
 numfort_add_test(interpolate_curfit curfit.f90)
 numfort_add_test(interpolate_linear linear.f90)
+foreach(precision IN ITEMS 32 64)
+    numfort_add_test(interpolate_linear_optional_real${precision} linear_optional.F90)
+    target_compile_definitions(numfort_test_interpolate_linear_optional_real${precision}
+        PRIVATE TEST_PREC=real${precision})
+endforeach()
 numfort_add_test(interpolate_linear_cached linear_cached.f90)
 numfort_add_test(interpolate_pchip pchip.f90)
 numfort_add_test(interpolate_search search.f90)

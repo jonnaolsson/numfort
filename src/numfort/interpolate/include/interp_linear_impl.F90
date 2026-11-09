@@ -169,6 +169,7 @@ pure subroutine __APPEND(interp_linear_eval_scalar,__PREC) (ilbound, &
 
     integer (NF_ENUM_KIND) :: lext
     type (status_t) :: lstatus
+    real (PREC) :: lleft, lright
 
     lstatus = NF_STATUS_OK
 
@@ -178,7 +179,13 @@ pure subroutine __APPEND(interp_linear_eval_scalar,__PREC) (ilbound, &
     lext = NF_INTERP_EVAL_EXTRAPOLATE
     if (present(ext)) lext = ext
 
-    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, left, right)
+    ! The evaluator requires constants even when the selected mode ignores them.
+    lleft = 0.0_PREC
+    lright = 0.0_PREC
+    if (present(left)) lleft = left
+    if (present(right)) lright = right
+
+    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, lleft, lright)
 
 100 continue
 
@@ -297,17 +304,24 @@ pure subroutine __APPEND(interp_linear_eval_1d,__PREC) (ilbound, &
 
     type (status_t) :: lstatus
     integer (NF_ENUM_KIND) :: lext
+    real (PREC) :: lleft, lright
 
     call interp_linear_eval_check_input (ilbound, weight, fx, lstatus)
     if (lstatus /= NF_STATUS_OK) goto 100
 
-    call check_input_ext (1.0_PREC, ext, left, right, status)
+    call check_input_ext (1.0_PREC, ext, left, right, lstatus)
     if (lstatus /= NF_STATUS_OK) goto 100
 
     lext = NF_INTERP_EVAL_EXTRAPOLATE
     if (present(ext)) lext = ext
 
-    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, left, right)
+    ! The evaluator requires constants even when the selected mode ignores them.
+    lleft = 0.0_PREC
+    lright = 0.0_PREC
+    if (present(left)) lleft = left
+    if (present(right)) lright = right
+
+    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, lleft, lright)
 
 100 continue
 
@@ -358,6 +372,7 @@ pure subroutine __APPEND(interp_linear_scalar,__PREC) (x, xp, fp, fx, ext, &
     type (search_cache) :: lcache
     integer (INTSIZE) :: ilbound
     real (PREC) :: weight
+    real (PREC) :: lleft, lright
 
     lstatus = NF_STATUS_OK
 
@@ -371,13 +386,19 @@ pure subroutine __APPEND(interp_linear_scalar,__PREC) (x, xp, fp, fx, ext, &
     if (present(ext)) lext = ext
     if (present(cache)) lcache = cache
 
+    ! The evaluator requires constants even when the selected mode ignores them.
+    lleft = 0.0_PREC
+    lright = 0.0_PREC
+    if (present(left)) lleft = left
+    if (present(right)) lright = right
+
     ! Find index of bracketing interval lower bound and its weight
     call interp_find_impl (x, xp, ilbound, weight, lext, lcache, lstatus)
 
     if (lstatus /= NF_STATUS_OK) goto 100
 
     ! Evaluate interpolant and desired location
-    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, left, right)
+    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, lleft, lright)
 
     if (present(cache)) cache = lcache
 
@@ -433,6 +454,7 @@ pure subroutine __APPEND(interp_linear_1d,__PREC) (x, xp, fp, fx, ext, left, &
     integer (INTSIZE), dimension(:), allocatable :: ilbound
     real (PREC), dimension(:), allocatable :: weight
     integer (INTSIZE) :: n
+    real (PREC) :: lleft, lright
 
     lstatus = NF_STATUS_OK
 
@@ -446,6 +468,12 @@ pure subroutine __APPEND(interp_linear_1d,__PREC) (x, xp, fp, fx, ext, left, &
     if (present(ext)) lext = ext
     if (present(cache)) lcache = cache
 
+    ! The evaluator requires constants even when the selected mode ignores them.
+    lleft = 0.0_PREC
+    lright = 0.0_PREC
+    if (present(left)) lleft = left
+    if (present(right)) lright = right
+
     ! Allocate arrays to store location and interpolation weights
     n = size(x)
     allocate (ilbound(n))
@@ -457,7 +485,7 @@ pure subroutine __APPEND(interp_linear_1d,__PREC) (x, xp, fp, fx, ext, left, &
     if (lstatus /= NF_STATUS_OK) goto 100
 
     ! Evaluate interpolant and desired location
-    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, left, right)
+    call interp_linear_eval_impl (ilbound, weight, fp, fx, lext, lleft, lright)
 
     if (present(cache)) cache = lcache
 
