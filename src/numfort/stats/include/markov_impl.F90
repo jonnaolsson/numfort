@@ -128,6 +128,11 @@ end subroutine
 subroutine rouwenhorst (rho, sigma, states, tm, sigma_cond, status)
     !*  ROUWENHORST returns the discretized approximation of an AR(1) process
     !   using the Rouwenhorst method.
+    !   Matching empty arrays are a successful no-op. A singleton grid has
+    !   state zero and transition probability one; rho and sigma are ignored
+    !   for both cases. With more than one state, abs(rho) < 1 and sigma >= 0
+    !   are required. Zero sigma sets every state to zero and preserves the
+    !   rho-dependent transition matrix.
     real (PREC), intent(in) :: rho
         !*  Autocorrelation coefficient
     real (PREC), intent(in) :: sigma
