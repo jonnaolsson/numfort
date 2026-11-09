@@ -1,6 +1,9 @@
 numfort_add_test(optimize_minimize_dfls minimize_dfls.f90)
 numfort_add_test(optimize_minimize_lbfgsb minimize_lbfgsb.f90)
 numfort_add_test(optimize_minimize_simplex minimize_simplex.f90)
+numfort_add_test(optimize_minimize_simplex_regression minimize_simplex_regression.F90)
+set_tests_properties(numfort_optimize_minimize_simplex
+    numfort_optimize_minimize_simplex_regression PROPERTIES TIMEOUT 15)
 numfort_add_test(optimize_minimize_slsqp minimize_slsqp.f90)
 numfort_add_test(optimize_minimize_slsqp_ng minimize_slsqp_ng.f90)
 numfort_add_test(optimize_minpack minpack.f90)

@@ -21,6 +21,12 @@ program test_stats_markov
     call test_tauchen ()
     call test_rouwenhorst_iid ()
     call test_rouwenhorst_python ()
+    call test_rouwenhorst_degenerate ()
+    call test_rouwenhorst_two_states ()
+    call test_rouwenhorst_binomial ()
+    call test_rouwenhorst_dimensions ()
+    call test_rouwenhorst_invalid_parameters ()
+    call test_rouwenhorst_zero_sigma ()
 
     call test_histogram ()
 
@@ -423,6 +429,222 @@ subroutine test_rouwenhorst_python ()
     deallocate (states, tm, tm_T, edist, edist2)
 
 end subroutine
+
+
+subroutine test_rouwenhorst_degenerate ()
+    !* - Check the singleton grid and absorbing transition.
+    !  - Permit empty arrays and ignore process parameters for n <= 1.
+
+    real (PREC) :: states(1), tm(1,1), empty_states(0), empty_tm(0,0)
+    type (status_t) :: status
+
+    ! A persistent process with one state collapses to zero with probability one.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, states, tm, status=status)
+    if (status /= NF_STATUS_OK) error stop "Singleton Rouwenhorst failed"
+    if (states(1) /= 0.0_PREC) error stop "Singleton state must be zero"
+    if (tm(1,1) /= 1.0_PREC) error stop "Singleton transition must be one"
+
+    ! An iid process also collapses to the same singleton distribution.
+    call rouwenhorst (0.0_PREC, 0.3_PREC, states, tm, status=status)
+    if (status /= NF_STATUS_OK) error stop "IID singleton Rouwenhorst failed"
+    if (states(1) /= 0.0_PREC) error stop "IID singleton state must be zero"
+    if (tm(1,1) /= 1.0_PREC) error stop "IID singleton transition must be one"
+
+    ! Singleton inputs bypass scale calculations and parameter validation.
+    call rouwenhorst (1.0_PREC, -0.3_PREC, states, tm, status=status)
+    if (status /= NF_STATUS_OK) error stop "Singleton parameters were rejected"
+    if (states(1) /= 0.0_PREC) error stop "Degenerate singleton state must be zero"
+    if (tm(1,1) /= 1.0_PREC) error stop "Degenerate singleton transition must be one"
+
+    ! Matching empty arrays are a successful no-op.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, empty_states, empty_tm, status=status)
+    if (status /= NF_STATUS_OK) error stop "Empty Rouwenhorst failed"
+
+    ! Empty inputs also bypass process parameter validation.
+    call rouwenhorst (-1.0_PREC, -0.3_PREC, empty_states, empty_tm, status=status)
+    if (status /= NF_STATUS_OK) error stop "Empty Rouwenhorst parameters were rejected"
+
+end subroutine
+
+
+subroutine test_rouwenhorst_two_states ()
+    !* - Compare the two-state grid and transition matrix to closed forms.
+    !  - Use the default conditional sigma for each persistence sign.
+
+    real (PREC), parameter :: SIGMA = 0.3_PREC, TOL = 1.0e-13_PREC
+    real (PREC), parameter :: RHO(*) = [ &
+        0.8_PREC, & ! Positive persistence favors remaining in the current state.
+        0.0_PREC, & ! An iid process assigns equal probability to both states.
+        -0.6_PREC] ! Negative persistence favors switching states.
+    real (PREC) :: states(2), tm(2,2), expected_tm(2,2), sigma_z, p
+    type (status_t) :: status
+    integer :: i
+
+    do i = 1, size (RHO)
+        call rouwenhorst (RHO(i), SIGMA, states, tm, status=status)
+        if (status /= NF_STATUS_OK) error stop "Two-state Rouwenhorst failed"
+
+        ! Var(z) = rho**2 * Var(z) + sigma**2 gives the unconditional scale.
+        sigma_z = SIGMA / sqrt (1.0_PREC - RHO(i)**2)
+        if (.not. all_close (states, [-sigma_z, sigma_z], rtol=0.0_PREC, &
+            atol=TOL)) error stop "Two-state Rouwenhorst grid is incorrect"
+
+        ! Staying has probability p = (1 + rho) / 2; switching has 1 - p.
+        p = (1.0_PREC + RHO(i)) / 2.0_PREC
+        expected_tm = reshape ([p, 1.0_PREC - p, 1.0_PREC - p, p], [2, 2])
+        if (.not. all_close (tm, expected_tm, rtol=0.0_PREC, atol=TOL)) &
+            error stop "Two-state Rouwenhorst transitions are incorrect"
+    end do
+
+end subroutine
+
+
+subroutine test_rouwenhorst_binomial ()
+    !* - Check a five-state chain using independent binomial stationary weights.
+    !  - Verify probabilities, the grid, and moments for each persistence sign.
+
+    real (PREC), parameter :: SIGMA = 0.3_PREC, TOL = 1.0e-13_PREC
+    real (PREC), parameter :: RHO(*) = [ &
+        0.9_PREC, & ! Persistent shocks have positive lag-one covariance.
+        0.0_PREC, & ! IID shocks have zero lag-one covariance.
+        -0.6_PREC] ! Alternating shocks have negative lag-one covariance.
+    ! Four independent Bernoulli(1/2) states give C(4,k) / 2**4, k = 0,...,4.
+    real (PREC), parameter :: WEIGHTS(*) = &
+        [1.0_PREC, 4.0_PREC, 6.0_PREC, 4.0_PREC, 1.0_PREC] / 16.0_PREC
+    real (PREC) :: states(5), tm(5,5), sigma_z, mean, variance, acorr
+    type (status_t) :: status
+    integer :: i
+
+    do i = 1, size (RHO)
+        call rouwenhorst (RHO(i), SIGMA, states, tm, status=status)
+        if (status /= NF_STATUS_OK) error stop "Binomial Rouwenhorst failed"
+        if (any (tm < 0.0_PREC)) error stop "Rouwenhorst probabilities are negative"
+        if (.not. all (abs (sum (tm, dim=2) - 1.0_PREC) <= TOL)) &
+            error stop "Rouwenhorst transition rows do not sum to one"
+        if (.not. all_close (matmul (WEIGHTS, tm), WEIGHTS, rtol=0.0_PREC, &
+            atol=TOL)) error stop "Binomial weights are not stationary"
+
+        ! Var(z) = sigma**2 / (1 - rho**2); the grid spans +/-sqrt(n-1)*sd(z).
+        sigma_z = SIGMA / sqrt (1.0_PREC - RHO(i)**2)
+        if (.not. all_close (states, &
+            sigma_z * [-2.0_PREC, -1.0_PREC, 0.0_PREC, 1.0_PREC, 2.0_PREC], &
+            rtol=0.0_PREC, atol=TOL)) error stop "Binomial state grid is incorrect"
+
+        ! Symmetric states and weights imply E[z] = 0.
+        mean = sum (WEIGHTS * states)
+        if (.not. all_close (mean, 0.0_PREC, rtol=0.0_PREC, atol=TOL)) &
+            error stop "Binomial Rouwenhorst mean is nonzero"
+        ! Var(z) = E[(z - E[z])**2] equals the unconditional AR(1) variance.
+        variance = sum (WEIGHTS * (states - mean)**2)
+        if (.not. all_close (variance, sigma_z**2, rtol=0.0_PREC, atol=TOL)) &
+            error stop "Binomial Rouwenhorst variance is incorrect"
+        ! For zero mean, Corr(z_t,z_t+1) = E[z_t * E[z_t+1 | z_t]] / Var(z).
+        acorr = sum (WEIGHTS * states * matmul (tm, states)) / variance
+        if (.not. all_close (acorr, RHO(i), rtol=0.0_PREC, atol=TOL)) &
+            error stop "Binomial Rouwenhorst autocorrelation is incorrect"
+    end do
+
+end subroutine
+
+
+subroutine test_rouwenhorst_dimensions ()
+    !* - Reject either mismatched matrix dimension before construction.
+    !  - Check dimensions even for singleton and empty grids.
+
+    real (PREC) :: states(3), tm(3,3)
+    type (status_t) :: status
+
+    ! The transition matrix has too many rows for two states.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, states(:2), tm(:3,:2), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) error stop "Rouwenhorst accepted extra rows"
+
+    ! The transition matrix has too many columns for two states.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, states(:2), tm(:2,:3), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Rouwenhorst accepted extra columns"
+
+    ! A square matrix must also match the state vector length.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, states, tm(:2,:2), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Rouwenhorst accepted a smaller square matrix"
+
+    ! The singleton shortcut must not bypass dimension checks.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, states(:1), tm(:2,:2), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Singleton Rouwenhorst accepted mismatched dimensions"
+
+    ! An empty grid requires zero columns even when the matrix has no elements.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, states(:0), tm(:0,:1), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Empty Rouwenhorst accepted a nonzero column count"
+
+    ! An empty grid also requires zero rows.
+    call rouwenhorst (0.9_PREC, 0.3_PREC, states(:0), tm(:1,:0), status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Empty Rouwenhorst accepted a nonzero row count"
+
+end subroutine
+
+
+subroutine test_rouwenhorst_invalid_parameters ()
+    !* - Reject unit roots and explosive persistence for n > 1.
+    !  - Reject a negative conditional standard deviation.
+
+    real (PREC), parameter :: RHO(*) = [ &
+        1.0_PREC, & ! Positive unit root.
+        -1.0_PREC, & ! Negative unit root.
+        1.1_PREC, & ! Explosive positive persistence.
+        -1.1_PREC] ! Explosive negative persistence.
+    real (PREC) :: states(2), tm(2,2)
+    type (status_t) :: status
+    integer :: i
+
+    do i = 1, size (RHO)
+        call rouwenhorst (RHO(i), 0.3_PREC, states, tm, status=status)
+        if (status /= NF_STATUS_INVALID_ARG) &
+            error stop "Rouwenhorst accepted nonstationary persistence"
+    end do
+
+    ! Valid persistence does not permit a negative sigma for two states.
+    call rouwenhorst (0.9_PREC, -0.3_PREC, states, tm, status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Rouwenhorst accepted negative sigma"
+
+end subroutine
+
+
+subroutine test_rouwenhorst_zero_sigma ()
+    !* - Accept zero sigma with all states at zero.
+    !  - Preserve the rho-dependent transition probabilities.
+
+    real (PREC), parameter :: TOL = 1.0e-13_PREC
+    real (PREC), parameter :: RHO(*) = [ &
+        0.8_PREC, & ! Zero variance with positive persistence.
+        0.0_PREC, & ! Zero variance with iid transitions.
+        -0.6_PREC] ! Zero variance with negative persistence.
+    real (PREC) :: states(3), tm(3,3), expected_tm(3,3), p, q
+    type (status_t) :: status
+    integer :: i
+
+    do i = 1, size (RHO)
+        call rouwenhorst (RHO(i), 0.0_PREC, states, tm, status=status)
+        if (status /= NF_STATUS_OK) error stop "Rouwenhorst rejected zero sigma"
+        if (any (states /= 0.0_PREC)) error stop "Zero sigma gave nonzero states"
+
+        ! Aggregate two independent two-state chains with stay/switch rates p/q.
+        p = (1.0_PREC + RHO(i)) / 2.0_PREC
+        q = 1.0_PREC - p
+        ! Equal starting states give probabilities p**2, 2*p*q, q**2.
+        ! Mixed starting states give p*q, p**2 + q**2, p*q.
+        expected_tm(1,:) = [p**2, 2.0_PREC * p * q, q**2]
+        expected_tm(2,:) = [p * q, p**2 + q**2, p * q]
+        expected_tm(3,:) = [q**2, 2.0_PREC * p * q, p**2]
+        if (.not. all_close (tm, expected_tm, rtol=0.0_PREC, atol=TOL)) &
+            error stop "Zero sigma changed Rouwenhorst transitions"
+    end do
+
+end subroutine
+
 
 subroutine test_histogram ()
 

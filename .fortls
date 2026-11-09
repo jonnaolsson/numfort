@@ -1,14 +1,26 @@
 {
-  "include_dirs": ["src/include", 
-  "src/arrays/include",
-  "src/common/include",
-  "src/integrate/include",
-  "src/interpolate/include",
-  "src/linalg/include",
-  "src/optimize/include",
-  "src/polynomial/include",
-  "src/stats/include"
+  "source_dirs": [
+    "src/**",
+    "tests/**",
+    "examples/**"
+  ],
+  "excl_paths": [
+    "build-ci/**",
+    "ci/**",
+    "cmake/**",
+    "install/**",
+    "submodules/**",
+    "tools/**"
+  ],
+  "include_dirs": [
+    "src/numfort/include",
+    "src/numfort/**/include",
+    "tests/**/include",
+    "examples/**/include"
   ],
   "lowercase_intrinsics": true,
-  "pp_defs": {"PREC": "real64"}
+  "pp_defs": {
+    "PREC": "real64"
+  },
+  "disable_autoupdate": true
 }
