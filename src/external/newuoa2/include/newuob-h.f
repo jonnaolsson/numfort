@@ -5,13 +5,14 @@ C
       SUBROUTINE NEWUOB_H(FCN,N,MV,NPT,X,RHOBEG,RHOEND,IPRINT,MAXFUN,
      &  XBASE,XOPT,XNEW,XPT,GQ,HQ,PQ,BMAT,ZMAT,NDIM,D,VLAG,
      &  GQV,HQV,PQV,WV,V_ERR,V_BEG,V_TEMP,DIFFV,V_OPT,V_VQUAD,
-     &  V_BASE,HD1,GQV_OPT,W,NF)
+     &  V_BASE,HD1,GQV_OPT,W,NF,INFO)
+      USE, INTRINSIC :: IEEE_ARITHMETIC, ONLY: IEEE_IS_FINITE
       IMPLICIT REAL (PREC) (A-H,O-Z)
       PROCEDURE (fobj_if) :: FCN
       INTEGER, INTENT(IN) :: N
       INTEGER, INTENT(IN) :: MV
       INTEGER, INTENT(IN) :: NPT
-      REAL (PREC), INTENT(OUT), DIMENSION(:), CONTIGUOUS :: X
+      REAL (PREC), INTENT(INOUT), DIMENSION(:), CONTIGUOUS :: X
       REAL (PREC), INTENT(IN) :: RHOBEG, RHOEND
       INTEGER, INTENT(IN) :: IPRINT
       INTEGER, INTENT(IN) :: MAXFUN
@@ -43,6 +44,8 @@ C
       REAL (PREC), INTENT(OUT), DIMENSION(:), TARGET, CONTIGUOUS :: W
       INTEGER, INTENT(OUT) :: NF
 c       Contains number of function evaluations on exit
+      INTEGER, INTENT(OUT) :: INFO
+C       Explicit termination reason, independent of the evaluation count.
 
       logical model_update, opt_update, debug
 
@@ -57,6 +60,7 @@ c       Contains number of function evaluations on exit
       REAL (PREC) :: FBEG, FOPT, F
 
       debug = .false.
+      INFO=NEWUOA_NUMERICAL_ERROR
 C
 C     Set some constants.
 C
@@ -71,6 +75,7 @@ c     variables. Reverse-engineered values required to get through the GOTO
 c     insanity the first time before these values are overwritten.
       FBEG = 0.0_PREC
       FOPT = HUGE(0.0_PREC)
+      XOPT=ZERO
 C
 C     Set the initial elements of XPT, BMAT, HQ, PQ and ZMAT to zero.
 C
@@ -134,6 +139,8 @@ C
    76     v_opt(m1) = v_err(m1)
           KOPT=NF
       END IF
+C     Keep the best displacement valid during partial initialization.
+      XOPT=XPT(KOPT,:)
 C
 C     Set the nonzero initial elements of BMAT and the quadratic model in
 C     the cases when NF is at most 2*N+1.
@@ -371,6 +378,8 @@ C
       NF=NF+1
   310 IF (NF .GT. NFTEST) THEN
           NF=NF-1
+          INFO=NEWUOA_MAXFUN
+          F=FOPT
           IF (IPRINT .GT. 0) PRINT 320
   320     FORMAT (/4X,'Return from NEWUOA because CALFUN has been',
      1      ' called MAXFUN times.')
@@ -385,6 +394,14 @@ C     f_value(mv,v_err,F) provides the value of the sum of the squres of the com
 C     i.e. F = sum_{i=1}^{mv} v_err_i (x)^2
 C
       call f_value(mv,v_err,F)
+C     Reject nonfinite residual norms before updating the model. If a
+C     previous evaluation succeeded, return its best point and residual.
+      IF (.NOT. IEEE_IS_FINITE(F)) THEN
+          INFO=NEWUOA_NUMERICAL_ERROR
+          IF (NF .EQ. 1) RETURN
+          F=FOPT
+          GOTO 530
+      END IF
       IF (IPRINT .EQ. 3) THEN
           PRINT 330, NF,F,(X(I),I=1,N)
   330      FORMAT (/4X,'Function number',I6,'    F =',1PD18.10,
@@ -397,12 +414,17 @@ C
       endif
 
       if(F .le. MAX(1.0e-12_PREC,1.0e-20_PREC*FBEG)) then
-         print *, " F.le.MAX(1.d-12,1.d-20*FBEG)"
+         INFO=NEWUOA_CONVERGED
+         IF (IPRINT .GT. 0)
+     &       print *, " F.le.MAX(1.d-12,1.d-20*FBEG)"
          go to 530
       endif
 
       IF (NF .LE. NPT) GOTO 70
-      IF (KNEW .EQ. -1) GOTO 530
+      IF (KNEW .EQ. -1) THEN
+          INFO=NEWUOA_CONVERGED
+          GOTO 530
+      END IF
 C
 C     Use the quadratic model to predict the change in F due to the step D,
 C     and set DIFF to the error of this prediction.
@@ -475,7 +497,8 @@ C
 C
 C     Pick the next value of DELTA after a trust region step.
 C
-      IF (VQUAD1 .GE. ZERO) THEN
+      IF (VQUAD1 .GE. ZERO .OR. .NOT. IEEE_IS_FINITE(VQUAD1)) THEN
+          INFO=NEWUOA_NUMERICAL_ERROR
           IF (IPRINT .GT. 0) PRINT 370
   370     FORMAT (/4X,'Return from NEWUOA because a trust',
      1      ' region step has failed to reduce Q.')
@@ -641,10 +664,12 @@ C     Return from the calculation, after another Newton-Raphson step, if
 C     it is too short to have been tried before.
 C
       IF (KNEW .EQ. -1) GOTO 290
+      INFO=NEWUOA_CONVERGED
   530 IF (FOPT .LE. F) THEN
           DO 540 I=1,N
   540     X(I)=XBASE(I)+XOPT(I)
           F=FOPT
+          V_ERR=V_OPT
       END IF
       IF (IPRINT .GE. 1) THEN
           PRINT 550, NF
