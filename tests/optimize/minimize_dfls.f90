@@ -5,21 +5,29 @@ program test_optimize_minimize_dfls
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
 
     use numfort_common
+    use numfort_common_testing, only: all_close
     use numfort_optimize, optim_result => optim_result_real64
 
     implicit none
 
     integer, parameter :: PREC = real64
     integer :: calls, invalid_call
+    integer :: ncalls, ncalls32
+    real (PREC) :: first_x(2)
+    real (real32) :: first_x32(2)
 
     call test_evaluation_budget ()
     call test_convergence ()
     call test_overdetermined ()
+    call test_affine_nonzero_start ()
+    call test_rosenbrock_nonzero_start ()
     call test_numerical_failure ()
     call test_invalid_input ()
     call test_real32 ()
+    call test_affine_nonzero_start_real32 ()
 
 contains
+
 
 subroutine test_evaluation_budget ()
     !* - Enforce tiny budgets using an independent callback counter.
@@ -159,6 +167,70 @@ subroutine test_overdetermined ()
 end subroutine
 
 
+subroutine test_affine_nonzero_start ()
+    !* - Preserve a nonzero initial point through the NEWUOA2 interfaces.
+    !  - Check a closed-form minimum with nonzero residuals.
+
+    real (PREC), parameter :: X0(2) = [-4.0_PREC, 5.0_PREC]
+    real (PREC), parameter :: XMIN(2) = [3.0_PREC, 0.0_PREC]
+    real (PREC), parameter :: FMIN(3) = [1.0_PREC, 1.0_PREC, -1.0_PREC]
+    real (PREC) :: x(2), fx(3)
+    type (optim_result) :: res
+
+    ! An overdetermined affine problem starts far outside the initial radius.
+    x = X0
+    ncalls = 0
+    call minimize_dfls (fobj_affine, x, 3, 0.25_PREC, 1.0e-8_PREC, res=res)
+
+    if (any (first_x /= X0)) error stop "DFLS affine initial coordinates"
+    if (res%status /= NF_STATUS_OK) error stop "DFLS affine status"
+    if (res%nfev /= ncalls) error stop "DFLS affine evaluation count"
+    ! The normal equations are 2*x1 + x2 = 6 and x1 + 2*x2 = 3.
+    if (.not. all_close (x, XMIN, atol=1.0e-6_PREC)) &
+        error stop "DFLS affine minimizer"
+    ! At (3, 0), the residuals are (1, 1, -1), with sum of squares 3.
+    if (.not. all_close (res%fx, FMIN, atol=1.0e-6_PREC)) &
+        error stop "DFLS affine minimum residuals"
+    if (any (res%x /= x)) error stop "DFLS affine result coordinates"
+    call fobj_affine (x, fx)
+    if (.not. all_close (res%fx, fx, atol=1.0e-12_PREC)) &
+        error stop "DFLS affine result residuals"
+end subroutine
+
+
+subroutine test_rosenbrock_nonzero_start ()
+    !* - Exercise repeated model updates on a nonlinear residual function.
+    !  - Check the initial callback and the final coordinates and residuals.
+
+    integer, parameter :: NPT = 5
+    real (PREC), parameter :: X0(2) = [-1.2_PREC, 1.0_PREC]
+    real (PREC), parameter :: XMIN(2) = [1.0_PREC, 1.0_PREC]
+    real (PREC) :: x(2), fx(2)
+    type (optim_result) :: res
+
+    ! Rosenbrock residuals need repeated model updates from this starting point.
+    x = X0
+    ncalls = 0
+    call minimize_dfls (fobj_rosenbrock, x, 2, 0.25_PREC, 1.0e-8_PREC, &
+        nint=NPT, maxfev=500, res=res)
+
+    if (any (first_x /= X0)) error stop "DFLS Rosenbrock initial coordinates"
+    if (res%status /= NF_STATUS_OK) error stop "DFLS Rosenbrock status"
+    if (res%nfev /= ncalls) error stop "DFLS Rosenbrock evaluation count"
+    ! Exclude the NPT initial evaluations and the final residual recomputation.
+    if (ncalls <= NPT + 3) error stop "DFLS Rosenbrock insufficient iterations"
+    ! Both 10*(x2 - x1**2) and 1 - x1 vanish only at (1, 1).
+    if (.not. all_close (x, XMIN, atol=2.0e-6_PREC)) &
+        error stop "DFLS Rosenbrock minimizer"
+    if (.not. all (abs (res%fx) <= 1.0e-6_PREC)) &
+        error stop "DFLS Rosenbrock minimum residuals"
+    if (any (res%x /= x)) error stop "DFLS Rosenbrock result coordinates"
+    call fobj_rosenbrock (x, fx)
+    if (.not. all_close (res%fx, fx, atol=1.0e-12_PREC)) &
+        error stop "DFLS Rosenbrock result residuals"
+end subroutine
+
+
 subroutine test_numerical_failure ()
     !* - Reject nonfinite residuals without certifying convergence.
     !  - Preserve the best valid point when a later evaluation fails.
@@ -244,6 +316,37 @@ subroutine test_real32 ()
 end subroutine
 
 
+subroutine test_affine_nonzero_start_real32 ()
+    !* - Check the same input-state contract in the single-precision instantiation.
+    !  - Verify a closed-form minimum and consistent result fields.
+
+    real (real32), parameter :: X0(2) = [-4.0_real32, 5.0_real32]
+    real (real32), parameter :: XMIN(2) = [3.0_real32, 0.0_real32]
+    real (real32), parameter :: FMIN(3) = [1.0_real32, 1.0_real32, -1.0_real32]
+    real (real32) :: x(2), fx(3)
+    type (optim_result_real32) :: res
+
+    ! Use a final radius appropriate for single-precision arithmetic.
+    x = X0
+    ncalls32 = 0
+    call minimize_dfls (fobj_affine_real32, x, 3, 0.25_real32, 1.0e-4_real32, &
+        res=res)
+
+    if (any (first_x32 /= X0)) error stop "DFLS real32 initial coordinates"
+    if (res%status /= NF_STATUS_OK) error stop "DFLS real32 status"
+    if (res%nfev /= ncalls32) error stop "DFLS real32 evaluation count"
+    ! The normal equations give (3, 0), with residuals (1, 1, -1).
+    if (.not. all_close (x, XMIN, atol=1.0e-3_real32)) &
+        error stop "DFLS real32 minimizer"
+    if (.not. all_close (res%fx, FMIN, atol=1.0e-3_real32)) &
+        error stop "DFLS real32 minimum residuals"
+    if (any (res%x /= x)) error stop "DFLS real32 result coordinates"
+    call fobj_affine_real32 (x, fx)
+    if (.not. all_close (res%fx, fx, atol=epsilon (1.0_real32))) &
+        error stop "DFLS real32 result residuals"
+end subroutine
+
+
 subroutine identity (x, fx)
     !* Evaluate identity residuals and count actual callback invocations.
     real (PREC), intent(in), contiguous :: x(:)
@@ -302,6 +405,48 @@ subroutine identity_real32 (x, fx)
 
     calls = calls + 1
     fx = x
+end subroutine
+
+
+subroutine fobj_affine (x, fx)
+    !* Compute affine residuals and record the first evaluation point.
+
+    real (PREC), intent(in), contiguous :: x(:)
+        !* Evaluation point.
+    real (PREC), intent(out), contiguous :: fx(:)
+        !* Residual vector.
+
+    if (ncalls == 0) first_x = x
+    ncalls = ncalls + 1
+    fx = [x(1) - 2.0_PREC, x(2) + 1.0_PREC, x(1) + x(2) - 4.0_PREC]
+end subroutine
+
+
+subroutine fobj_rosenbrock (x, fx)
+    !* Compute Rosenbrock residuals and record the first evaluation point.
+
+    real (PREC), intent(in), contiguous :: x(:)
+        !* Evaluation point.
+    real (PREC), intent(out), contiguous :: fx(:)
+        !* Residual vector.
+
+    if (ncalls == 0) first_x = x
+    ncalls = ncalls + 1
+    fx = [10.0_PREC * (x(2) - x(1)**2), 1.0_PREC - x(1)]
+end subroutine
+
+
+subroutine fobj_affine_real32 (x, fx)
+    !* Compute affine residuals and record the first single-precision point.
+
+    real (real32), intent(in), contiguous :: x(:)
+        !* Evaluation point.
+    real (real32), intent(out), contiguous :: fx(:)
+        !* Residual vector.
+
+    if (ncalls32 == 0) first_x32 = x
+    ncalls32 = ncalls32 + 1
+    fx = [x(1) - 2.0_real32, x(2) + 1.0_real32, x(1) + x(2) - 4.0_real32]
 end subroutine
 
 end program
