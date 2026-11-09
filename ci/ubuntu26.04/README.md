@@ -92,7 +92,24 @@ with-oneapi bash /src/numfort/ci/ubuntu26.04/run-matrix.sh
   a result, for example after interruption. CTest handles worker scheduling and
   interruption; its diagnostics remain under the invocation's `scheduler/`.
 
-With the same Docker mounts, use this container command for two selected jobs:
+Run the full matrix with up to 8 concurrent configurations:
+
+```sh
+mkdir -p build-ci
+docker run --rm --ulimit core=0 --user "$(id -u):$(id -g)" \
+    -v "$(pwd):/src/numfort:ro,z" \
+    -v "$(pwd)/build-ci:/build:z" \
+    fortran-ci:ubuntu26.04 with-oneapi \
+    bash /src/numfort/ci/ubuntu26.04/run-matrix.sh --jobs 8
+```
+
+Alternatively, invoke the host helper script from the repository root:
+
+```sh
+./ci/ubuntu26.04/run-all.sh
+```
+
+With the same Docker mounts, run selected jobs by appending their names:
 
 ```sh
 with-oneapi bash /src/numfort/ci/ubuntu26.04/run-matrix.sh --jobs 8 \
