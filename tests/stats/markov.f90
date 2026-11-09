@@ -2,6 +2,9 @@
 program test_stats_markov
 
     use, intrinsic :: iso_fortran_env
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use, intrinsic :: ieee_exceptions, only: ieee_get_flag, ieee_set_flag, &
+        ieee_divide_by_zero, ieee_invalid
 
     use numfort_common
     use numfort_stats
@@ -12,6 +15,8 @@ program test_stats_markov
 
     integer, parameter :: PREC = real64
 
+    call test_truncate_trans_matrix ()
+    call test_truncate_trans_matrix_no_mass ()
     call test_is_trans_matrix_orientation ()
     call test_is_trans_matrix_invalid ()
     call test_is_trans_matrix_nonfinite ()
@@ -34,6 +39,191 @@ program test_stats_markov
     call test_simulate_advanced ()
 
     contains
+
+
+subroutine test_truncate_trans_matrix ()
+    !* - Check normal truncation, no-op tolerance, and threshold equality.
+    !  - Check singleton and empty matrices.
+    !  - Preserve retained probability ratios and normalize both orientations.
+    !  - Avoid invalid operations and division by zero.
+
+    real (PREC), parameter :: ATOL = 32.0_PREC * epsilon (1.0_PREC)
+    real (PREC), parameter :: CONTROL(2,2) = reshape ([ &
+        0.9_PREC, 0.1_PREC, 0.2_PREC, 0.8_PREC], [2,2], order=[2,1])
+    real (PREC), parameter :: DESIRED(2,2) = reshape ([ &
+        1.0_PREC, 0.0_PREC, 0.2_PREC, 0.8_PREC], [2,2], order=[2,1])
+    real (PREC), parameter :: ASYMMETRIC(3,3) = reshape ([ &
+        0.6_PREC,   0.3_PREC,   0.1_PREC, &
+        0.125_PREC, 0.375_PREC, 0.5_PREC, &
+        0.25_PREC,  0.0_PREC,   0.75_PREC], [3,3], order=[2,1])
+    ! Retained odds are 2:1 and 3:4, so probabilities are 2/3, 1/3 and 3/7, 4/7.
+    real (PREC), parameter :: RATIOS(3,3) = reshape ([ &
+        2.0_PREC / 3.0_PREC, 1.0_PREC / 3.0_PREC, 0.0_PREC, &
+        0.0_PREC, 3.0_PREC / 7.0_PREC, 4.0_PREC / 7.0_PREC, &
+        0.25_PREC, 0.0_PREC, 0.75_PREC], [3,3], order=[2,1])
+    real (PREC) :: mat(2,2), expected(2,2), mat3(3,3), singleton(1,1), empty(0,0)
+    type (status_t) :: status
+    logical :: flag_invalid, flag_div_zero
+
+    call ieee_set_flag (ieee_invalid, .false.)
+    call ieee_set_flag (ieee_divide_by_zero, .false.)
+
+    ! The independent control removes only 0.1 and normalizes its row to [1,0].
+    mat = CONTROL
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat, 0.15_PREC, status=status)
+    if (status /= NF_STATUS_OK) error stop "Truncation rejected the normal control"
+    if (.not. all_close (mat, DESIRED, rtol=0.0_PREC, atol=ATOL)) &
+        error stop "Truncation differs from the normal control"
+    if (.not. all (abs (sum (mat, dim=2) - 1.0_PREC) <= ATOL)) &
+        error stop "Truncation did not normalize rows"
+
+    ! Transposed input must give the transpose of the independent control.
+    mat = transpose (CONTROL)
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat, 0.15_PREC, .true., status)
+    if (status /= NF_STATUS_OK) error stop "Truncation rejected transposed control"
+    if (.not. all_close (mat, transpose (DESIRED), rtol=0.0_PREC, atol=ATOL)) &
+        error stop "Truncation differs from the transposed control"
+    if (.not. all (abs (sum (mat, dim=1) - 1.0_PREC) <= ATOL)) &
+        error stop "Truncation did not normalize columns"
+
+    ! Zero tolerance preserves an already normalized matrix, including zeros.
+    expected = reshape ([1.0_PREC, 0.0_PREC, 0.25_PREC, 0.75_PREC], &
+        [2,2], order=[2,1])
+    mat = expected
+    call truncate_trans_matrix (mat, 0.0_PREC)
+    if (any (mat /= expected)) error stop "Zero tolerance changed the matrix"
+
+    ! Keep probabilities equal to the threshold; remove only the smaller 0.125.
+    mat = reshape ([0.75_PREC, 0.25_PREC, 0.125_PREC, 0.875_PREC], &
+        [2,2], order=[2,1])
+    expected = reshape ([0.75_PREC, 0.25_PREC, 0.0_PREC, 1.0_PREC], &
+        [2,2], order=[2,1])
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat, 0.25_PREC, status=status)
+    if (status /= NF_STATUS_OK) error stop "Truncation rejected threshold equality"
+    if (any (mat /= expected)) error stop "Truncation removed threshold equality"
+
+    ! A singleton retains its unit probability at the exact threshold of one.
+    singleton = 1.0_PREC
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (singleton, 1.0_PREC, status=status)
+    if (status /= NF_STATUS_OK) error stop "Truncation rejected a singleton"
+    if (any (singleton /= 1.0_PREC)) error stop "Truncation changed a singleton"
+
+    ! Rows with different retained masses preserve their original odds.
+    mat3 = ASYMMETRIC
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat3, 0.2_PREC, transposed=.false., status=status)
+    if (status /= NF_STATUS_OK) error stop "Truncation rejected asymmetric rows"
+    if (.not. all (ieee_is_finite (mat3))) &
+        error stop "Truncation returned nonfinite row probabilities"
+    if (.not. all_close (mat3, RATIOS, rtol=0.0_PREC, atol=ATOL)) &
+        error stop "Truncation changed retained row probability ratios"
+    if (.not. all (abs (sum (mat3, dim=2) - 1.0_PREC) <= ATOL)) &
+        error stop "Truncation did not normalize asymmetric rows"
+
+    ! Transposed asymmetric input preserves the same odds in each column.
+    mat3 = transpose (ASYMMETRIC)
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat3, 0.2_PREC, transposed=.true., status=status)
+    if (status /= NF_STATUS_OK) error stop "Truncation rejected asymmetric columns"
+    if (.not. all (ieee_is_finite (mat3))) &
+        error stop "Truncation returned nonfinite column probabilities"
+    if (.not. all_close (mat3, transpose (RATIOS), rtol=0.0_PREC, atol=ATOL)) &
+        error stop "Truncation changed retained column probability ratios"
+    if (.not. all (abs (sum (mat3, dim=1) - 1.0_PREC) <= ATOL)) &
+        error stop "Truncation did not normalize asymmetric columns"
+
+    ! Empty matrices contain no conditional distributions to truncate.
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (empty, 0.6_PREC, status=status)
+    if (status /= NF_STATUS_OK) error stop "Truncation rejected an empty matrix"
+
+    call ieee_get_flag (ieee_invalid, flag_invalid)
+    call ieee_get_flag (ieee_divide_by_zero, flag_div_zero)
+    if (flag_invalid .or. flag_div_zero) &
+        error stop "Successful truncation raised an IEEE exception"
+
+end subroutine
+
+
+subroutine test_truncate_trans_matrix_no_mass ()
+    !* - Reject truncation that leaves any conditional distribution without mass.
+    !  - Preserve the entire input, including when status is omitted.
+    !  - Avoid NaNs, invalid operations, and division by zero.
+
+    real (PREC), parameter :: MIXED(2,2) = reshape ([ &
+        0.9_PREC, 0.1_PREC, 0.5_PREC, 0.5_PREC], [2,2], order=[2,1])
+    real (PREC) :: mat(2,2), singleton(1,1)
+    type (status_t) :: status
+    logical :: flag_invalid, flag_div_zero
+
+    call ieee_set_flag (ieee_invalid, .false.)
+    call ieee_set_flag (ieee_divide_by_zero, .false.)
+
+    ! Issue #43: truncation at 0.6 would remove every entry of the uniform matrix.
+    mat = 0.5_PREC
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat, 0.6_PREC, status=status)
+    call ieee_get_flag (ieee_invalid, flag_invalid)
+    call ieee_get_flag (ieee_divide_by_zero, flag_div_zero)
+    if (flag_invalid .or. flag_div_zero) &
+        error stop "All-removed truncation raised an IEEE exception"
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Truncation accepted removal of every probability"
+    if (.not. all (ieee_is_finite (mat))) &
+        error stop "All-removed truncation returned nonfinite probabilities"
+    if (any (mat /= 0.5_PREC)) error stop "All-removed truncation changed the matrix"
+
+    ! Existing callers without status receive the same unchanged matrix.
+    mat = 0.5_PREC
+    call truncate_trans_matrix (mat, 0.6_PREC)
+    if (any (mat /= 0.5_PREC)) &
+        error stop "All-removed truncation without status changed the matrix"
+
+    ! Only the second row loses all mass; neither row may be modified.
+    mat = MIXED
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat, 0.6_PREC, status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Truncation accepted removal of one row"
+    if (any (mat /= MIXED)) error stop "Rejected truncation partially changed rows"
+
+    ! Only the second column loses all mass in the transposed fixture.
+    mat = transpose (MIXED)
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat, 0.6_PREC, transposed=.true., status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Truncation accepted removal of one column"
+    if (any (mat /= transpose (MIXED))) &
+        error stop "Rejected truncation partially changed columns"
+
+    ! A threshold above one would remove the singleton's only transition.
+    singleton = 1.0_PREC
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (singleton, 1.1_PREC, status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Truncation accepted removal of the singleton transition"
+    if (any (singleton /= 1.0_PREC)) &
+        error stop "Rejected truncation changed a singleton"
+
+    ! Retained zero entries provide no positive mass even with zero tolerance.
+    mat = 0.0_PREC
+    status = NF_STATUS_UNDEFINED
+    call truncate_trans_matrix (mat, 0.0_PREC, status=status)
+    if (status /= NF_STATUS_INVALID_ARG) &
+        error stop "Truncation accepted a zero-mass matrix"
+    if (any (mat /= 0.0_PREC)) error stop "Truncation changed a zero-mass matrix"
+
+    call ieee_get_flag (ieee_invalid, flag_invalid)
+    call ieee_get_flag (ieee_divide_by_zero, flag_div_zero)
+    if (flag_invalid .or. flag_div_zero) &
+        error stop "Rejected truncation raised an IEEE exception"
+
+end subroutine
+
 
 subroutine test_is_trans_matrix_orientation ()
     !* - Check asymmetric matrices in both orientations and the singleton case.
