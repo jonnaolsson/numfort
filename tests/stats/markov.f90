@@ -12,6 +12,12 @@ program test_stats_markov
 
     integer, parameter :: PREC = real64
 
+    call test_is_trans_matrix_orientation ()
+    call test_is_trans_matrix_invalid ()
+    call test_is_trans_matrix_nonfinite ()
+    call test_is_trans_matrix_row_tolerance ()
+    call test_is_trans_matrix_column_tolerance ()
+    call test_is_trans_matrix_default_tolerance ()
     call test_tauchen ()
     call test_rouwenhorst_iid ()
     call test_rouwenhorst_python ()
@@ -28,6 +34,201 @@ program test_stats_markov
     call test_simulate_advanced ()
 
     contains
+
+subroutine test_is_trans_matrix_orientation ()
+    !* - Check asymmetric matrices in both orientations and the singleton case.
+    !  - Use square, nonempty fixtures; malformed shapes remain outside scope.
+
+    real (PREC) :: mat(2,2), singleton(1,1)
+
+    ! Rows sum to one; columns sum to 7/8 and 9/8, respectively.
+    mat(1,:) = [0.75_PREC, 0.25_PREC]
+    mat(2,:) = [0.125_PREC, 0.875_PREC]
+    if (.not. is_trans_matrix (mat)) &
+        error stop "Default orientation rejected a row-stochastic matrix"
+    if (.not. is_trans_matrix (mat, transposed=.false.)) &
+        error stop "Row orientation rejected a row-stochastic matrix"
+    if (is_trans_matrix (mat, transposed=.true.)) &
+        error stop "Column orientation accepted a row-stochastic matrix"
+
+    ! Columns sum to one; rows sum to 7/8 and 9/8, respectively.
+    mat(1,:) = [0.75_PREC, 0.125_PREC]
+    mat(2,:) = [0.25_PREC, 0.875_PREC]
+    if (.not. is_trans_matrix (mat, transposed=.true.)) &
+        error stop "Column orientation rejected a column-stochastic matrix"
+    if (is_trans_matrix (mat, transposed=.false.)) &
+        error stop "Row orientation accepted a column-stochastic matrix"
+    if (is_trans_matrix (mat)) &
+        error stop "Default orientation accepted a column-stochastic matrix"
+
+    ! The single state stays in itself with probability one in either orientation.
+    singleton(1,1) = 1.0_PREC
+    if (.not. is_trans_matrix (singleton)) &
+        error stop "Row orientation rejected a singleton transition"
+    if (.not. is_trans_matrix (singleton, transposed=.true.)) &
+        error stop "Column orientation rejected a singleton transition"
+
+end subroutine
+
+
+subroutine test_is_trans_matrix_invalid ()
+    !* - Reject negative probabilities even when the relevant sums equal one.
+    !  - Reject one incorrect row or column among otherwise valid ones.
+
+    real (PREC) :: mat(2,2), mat_t(2,2)
+
+    ! Both rows sum to one, but the second row has probability -1/8.
+    mat(1,:) = [0.75_PREC, 0.25_PREC]
+    mat(2,:) = [-0.125_PREC, 1.125_PREC]
+    if (is_trans_matrix (mat)) &
+        error stop "Row orientation accepted a negative probability"
+
+    ! Both columns sum to one, but the second column has probability -1/8.
+    mat_t = transpose (mat)
+    if (is_trans_matrix (mat_t, transposed=.true.)) &
+        error stop "Column orientation accepted a negative probability"
+
+    ! Only the second row is invalid: 1/8 + 3/4 = 7/8.
+    mat(2,:) = [0.125_PREC, 0.75_PREC]
+    if (is_trans_matrix (mat)) &
+        error stop "Transition matrix accepted one incorrect row sum"
+
+    ! Only the second column is invalid, with the same sum of 7/8.
+    mat_t = transpose (mat)
+    if (is_trans_matrix (mat_t, transposed=.true.)) &
+        error stop "Transition matrix accepted one incorrect column sum"
+
+end subroutine
+
+
+subroutine test_is_trans_matrix_nonfinite ()
+    !* - Reject NaN and both signs of infinity in either orientation.
+    !  - Leave the first row or column valid to check all entries are inspected.
+
+    use, intrinsic :: ieee_arithmetic, only: ieee_value, IEEE_QUIET_NAN, &
+        IEEE_POSITIVE_INF, IEEE_NEGATIVE_INF
+
+    real (PREC) :: mat(2,2), mat_t(2,2)
+
+    ! A quiet NaN in the second row cannot be a transition probability.
+    mat(1,:) = [0.75_PREC, 0.25_PREC]
+    mat(2,:) = [0.125_PREC, 0.875_PREC]
+    mat(2,2) = ieee_value (0.0_PREC, IEEE_QUIET_NAN)
+    if (is_trans_matrix (mat)) &
+        error stop "Row orientation accepted a NaN probability"
+
+    ! The transposed fixture places the NaN in the second column.
+    mat_t = transpose (mat)
+    if (is_trans_matrix (mat_t, transposed=.true.)) &
+        error stop "Column orientation accepted a NaN probability"
+
+    ! A positive infinity in the second row makes its sum infinite.
+    mat(2,2) = ieee_value (0.0_PREC, IEEE_POSITIVE_INF)
+    if (is_trans_matrix (mat)) &
+        error stop "Row orientation accepted positive infinity"
+
+    ! The transposed fixture has an infinite second column sum.
+    mat_t = transpose (mat)
+    if (is_trans_matrix (mat_t, transposed=.true.)) &
+        error stop "Column orientation accepted positive infinity"
+
+    ! A negative infinity in the second row is also invalid.
+    mat(2,2) = ieee_value (0.0_PREC, IEEE_NEGATIVE_INF)
+    if (is_trans_matrix (mat)) &
+        error stop "Row orientation accepted negative infinity"
+
+    ! The transposed fixture places negative infinity in the second column.
+    mat_t = transpose (mat)
+    if (is_trans_matrix (mat_t, transposed=.true.)) &
+        error stop "Column orientation accepted negative infinity"
+
+end subroutine
+
+
+subroutine test_is_trans_matrix_row_tolerance ()
+    !* - Check row sums above and below one at explicit tolerance boundaries.
+    !  - A deviation exactly equal to the tolerance must fail (strict comparison).
+
+    real (PREC), parameter :: TOL = 2.0_PREC ** (-10)
+    ! Exact binary deviations: inside the tolerance, at it, and outside it.
+    real (PREC), parameter :: DELTA(*) = [TOL / 2.0_PREC, TOL, 2.0_PREC * TOL]
+    logical, parameter :: VALID(*) = [.true., .false., .false.]
+    real (PREC) :: mat(2,2)
+    integer :: i
+
+    mat(1,:) = [0.75_PREC, 0.25_PREC]
+    mat(2,:) = [0.125_PREC, 0.875_PREC]
+    do i = 1, size (DELTA)
+        ! Second row sums to 1 + DELTA(i); errors TOL/2, TOL, 2*TOL.
+        mat(2,2) = 0.875_PREC + DELTA(i)
+        if (is_trans_matrix (mat, tol=TOL, transposed=.false.) .neqv. VALID(i)) &
+            error stop "Row sum excess violated the strict tolerance"
+
+        ! Second row sums to 1 - DELTA(i); the same absolute errors apply.
+        mat(2,2) = 0.875_PREC - DELTA(i)
+        if (is_trans_matrix (mat, tol=TOL, transposed=.false.) .neqv. VALID(i)) &
+            error stop "Row sum deficit violated the strict tolerance"
+    end do
+
+end subroutine
+
+
+subroutine test_is_trans_matrix_column_tolerance ()
+    !* - Check column sums above and below one at explicit tolerance boundaries.
+    !  - Use exact binary fractions so rounding cannot move the boundary cases.
+
+    real (PREC), parameter :: TOL = 2.0_PREC ** (-10)
+    ! Exact binary deviations: inside the tolerance, at it, and outside it.
+    real (PREC), parameter :: DELTA(*) = [TOL / 2.0_PREC, TOL, 2.0_PREC * TOL]
+    logical, parameter :: VALID(*) = [.true., .false., .false.]
+    real (PREC) :: mat(2,2)
+    integer :: i
+
+    mat(:,1) = [0.75_PREC, 0.25_PREC]
+    mat(:,2) = [0.125_PREC, 0.875_PREC]
+    do i = 1, size (DELTA)
+        ! Second column sums to 1 + DELTA(i); errors TOL/2, TOL, 2*TOL.
+        mat(2,2) = 0.875_PREC + DELTA(i)
+        if (is_trans_matrix (mat, tol=TOL, transposed=.true.) .neqv. VALID(i)) &
+            error stop "Column sum excess violated the strict tolerance"
+
+        ! Second column sums to 1 - DELTA(i); the same absolute errors apply.
+        mat(2,2) = 0.875_PREC - DELTA(i)
+        if (is_trans_matrix (mat, tol=TOL, transposed=.true.) .neqv. VALID(i)) &
+            error stop "Column sum deficit violated the strict tolerance"
+    end do
+
+end subroutine
+
+
+subroutine test_is_trans_matrix_default_tolerance ()
+    !* - Check the default tolerance of 1e-12 for rows and columns.
+
+    real (PREC) :: mat(2,2), mat_t(2,2)
+
+    ! The second row's excess is 2**(-40), approximately 9.09e-13 < 1e-12.
+    mat(1,:) = [0.75_PREC, 0.25_PREC]
+    mat(2,:) = [0.125_PREC, 0.875_PREC + 2.0_PREC ** (-40)]
+    if (.not. is_trans_matrix (mat)) &
+        error stop "Default tolerance rejected a small row sum error"
+
+    ! Transposing gives the same acceptable error in the second column.
+    mat_t = transpose (mat)
+    if (.not. is_trans_matrix (mat_t, transposed=.true.)) &
+        error stop "Default tolerance rejected a small column sum error"
+
+    ! The second row's excess is 2**(-39), approximately 1.82e-12 > 1e-12.
+    mat(2,2) = 0.875_PREC + 2.0_PREC ** (-39)
+    if (is_trans_matrix (mat)) &
+        error stop "Default tolerance accepted a large row sum error"
+
+    ! Transposing gives the same unacceptable error in the second column.
+    mat_t = transpose (mat)
+    if (is_trans_matrix (mat_t, transposed=.true.)) &
+        error stop "Default tolerance accepted a large column sum error"
+
+end subroutine
+
 
 subroutine test_tauchen ()
     !*  TEST_TAUCHEN compares discretized moments of Markov chain generated
