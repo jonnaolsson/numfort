@@ -40,47 +40,56 @@ end function
 
 
 
-subroutine truncate_trans_matrix (mat, tol, transposed)
-    !*  TRUNCATE_TRANS_MATRIX truncates low-probability transition in a
-    !   Markov transition matrix towards zero and re-normalizes the
-    !   rows or columns such that probabilities sum to 1.0.
+subroutine truncate_trans_matrix (mat, tol, transposed, status)
+    !* Truncate small transition probabilities and normalize rows or columns.
+    !  If any conditional distribution would have no positive mass left,
+    !  leave the entire matrix unchanged, including when STATUS is absent.
+
     real (PREC), intent(inout), dimension(:,:) :: mat
-        !*  Markov transition matrix with elements MAT(i,j) = Prob[x'=j | x=i]
+        !* Markov transition matrix with elements MAT(i,j) = Prob[x'=j | x=i].
     real (PREC), intent(in) :: tol
-        !*  Tolerance level for low probabilities such that all probabilities
-        !   smaller than TOL will be truncated to zero.
+        !* Probabilities strictly smaller than TOL are truncated to zero.
     logical, intent(in), optional :: transposed
-        !*  If present and true, assume that the matrix MAT is a transposed
-        !   transition matrix, ie MAT(i,j) = Prob[x'=i | x=j]
-        !   (default: false)
+        !* If true, MAT(i,j) = Prob[x'=i | x=j] and columns are normalized
+        !  (default: false).
+    type (status_t), intent(out), optional :: status
+        !* NF_STATUS_OK on success; NF_STATUS_INVALID_ARG if truncation would
+        !  leave any row (or column if TRANSPOSED) without positive mass.
 
     integer :: n, dim, i
     logical :: ltransposed
     real (PREC), dimension(:), allocatable :: rwork
 
+    if (present (status)) status = NF_STATUS_OK
+
     ltransposed = .false.
-    if (present(transposed)) ltransposed = transposed
+    if (present (transposed)) ltransposed = transposed
 
     dim = 2
     if (ltransposed) then
         dim = 1
     end if
 
-    where (mat < tol)
-        mat = 0.0
-    end where
-
-    n = size(mat,dim)
+    ! Check retained mass before modifying any entries.
+    n = size (mat, 3 - dim)
     allocate (rwork(n))
-    rwork(:) = sum(mat, dim=dim)
+    rwork(:) = sum (mat, dim=dim, mask=mat >= tol)
+    if (any (rwork <= 0.0_PREC)) then
+        if (present (status)) status = NF_STATUS_INVALID_ARG
+        return
+    end if
+
+    where (mat < tol)
+        mat = 0.0_PREC
+    end where
 
     ! Normalize such that conditional trans. probabilities sum to 1.0
     if (ltransposed) then
-        do i = 1, size(mat, 2)
+        do i = 1, size (mat, 2)
             mat(:,i) = mat(:,i) / rwork(i)
         end do
     else
-        do i = 1, size(mat, 2)
+        do i = 1, size (mat, 2)
             mat(:,i) = mat(:,i) / rwork
         end do
     end if
