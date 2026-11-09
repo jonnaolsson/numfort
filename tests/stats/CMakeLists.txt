@@ -1,5 +1,8 @@
 numfort_add_test(stats_random_integer random_integer.f90)
 numfort_add_test(stats_core core.f90)
+numfort_add_test(stats_core_quantile_real32 core_quantile.F90)
+target_compile_definitions(numfort_test_stats_core_quantile_real32 PRIVATE TEST_REAL32)
+numfort_add_test(stats_core_quantile_real64 core_quantile.F90)
 numfort_add_test(stats_dfrechet dfrechet.f90)
 numfort_add_test(stats_dlogistic dlogistic.f90)
 numfort_add_test(stats_dlognorm dlognorm.F90)

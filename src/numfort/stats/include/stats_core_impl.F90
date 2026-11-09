@@ -1002,24 +1002,36 @@ end subroutine
 
 
 
-pure subroutine quantile_discrete_check_input (x, pmf, q, &
-        pctl, status)
-    !*  QUANTILE_DISCRETE_CHECK_INPUT performs input validation for the
-    !   QUANTILE_DISCRETE routine.
+pure subroutine quantile_discrete_check_input (x, pmf, rnk, q, status)
+    !* Validate discrete support, weights, ranks, and output size.
+
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
     real (PREC), intent(in), dimension(:) :: x
+        !* Finite support values.
     real (PREC), intent(in), dimension(:) :: pmf
+        !* Finite, nonnegative weights with at least one positive value.
+    real (PREC), intent(in), dimension(:) :: rnk
+        !* Finite ranks in the closed interval [0,1].
     real (PREC), intent(in), dimension(:) :: q
-    real (PREC), intent(in), dimension(:) :: pctl
+        !* Output array whose size must match the ranks.
     type (status_t), intent(out) :: status
+        !* Validation status.
 
     status = NF_STATUS_INVALID_ARG
 
+    if (size(x) == 0) goto 100
     if (size(x) /= size(pmf)) goto 100
-    if (size(q) /= size(pctl)) goto 100
+    if (size(rnk) /= size(q)) goto 100
 
-    ! Enforce percentiles to be in valid range
-    if (any(q < 0.0_PREC)) goto 100
-    if (any(q > 1.0_PREC)) goto 100
+    if (.not. all (ieee_is_finite (x))) goto 100
+    if (.not. all (ieee_is_finite (pmf))) goto 100
+    if (any(pmf < 0.0_PREC)) goto 100
+    if (.not. any(pmf > 0.0_PREC)) goto 100
+
+    if (.not. all (ieee_is_finite (rnk))) goto 100
+    if (any(rnk < 0.0_PREC)) goto 100
+    if (any(rnk > 1.0_PREC)) goto 100
 
     status = NF_STATUS_OK
 
@@ -1153,16 +1165,24 @@ end subroutine
 
 
 subroutine quantile_discrete (x, pmf, rnk, q, sort, status)
+    !* Compute discrete quantiles using positive-mass support.
+    !  For 0 <= r < 1, select the smallest support value with F(x) > r.
+    !  At r = 1, select the largest support value with positive mass.
+
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
     real (PREC), intent(in), dimension(:), contiguous :: x
-        !*  Array containing state space of a discrete random variable.
+        !* Nonempty array of finite support values.
     real (PREC), intent(in), dimension(:), contiguous :: pmf
-        !*  PMF associated with bins defined by X
+        !* Finite, nonnegative weights associated with X. Their total must
+        !  be positive and finite; weights are normalized internally.
     real (PREC), intent(in), dimension(:), contiguous :: rnk
         !*  Array of quantiles "ranks" to compute which must be between
         !   0 and 1 inclusive.
     real (PREC), intent(out), dimension(:), contiguous :: q
-        !*  Output array storing (interpolated) quantiles corresponding to RNK
+        !* Quantiles corresponding to RNK, each in the positive-mass support.
     logical, intent(in), optional :: sort
+        !* Sort X internally by default. If false, X must be nondecreasing.
     type (status_t), intent(out), optional :: status
         !*  Optional status code
 
@@ -1185,10 +1205,19 @@ subroutine quantile_discrete (x, pmf, rnk, q, sort, status)
     n = size(pmf)
     nq = size(rnk)
 
+    if (.not. lsort) then
+        if (any(x(2:n) < x(1:n-1))) then
+            lstatus = NF_STATUS_INVALID_ARG
+            goto 100
+        end if
+    end if
+
     ncdf = n + 1
     allocate (cdf(ncdf))
-    cdf(1) = 0.0
+    cdf(1) = 0.0_PREC
+    imax = 0
 
+    ! Track the last positive weight in the same order used to build the CDF.
     if (lsort) then
         allocate (idx_sort(n))
         call argsort (x, idx_sort)
@@ -1196,19 +1225,20 @@ subroutine quantile_discrete (x, pmf, rnk, q, sort, status)
         do i = 1, n
             j = idx_sort(i)
             cdf(i+1) = cdf(i) + pmf(j)
+            if (pmf(j) > 0.0_PREC) imax = i
         end do
     else
         do i = 1, n
             cdf(i+1) = cdf(i) + pmf(i)
+            if (pmf(i) > 0.0_PREC) imax = i
         end do
     end if
 
+    if (.not. ieee_is_finite (cdf(ncdf))) then
+        lstatus = NF_STATUS_INVALID_ARG
+        goto 100
+    end if
     cdf(:) = cdf / cdf(ncdf)
-
-    ! Find last bin with non-zero mass
-    do imax = n, 2, -1
-        if (pmf(imax) > 0.0_PREC) exit
-    end do
 
     do i = 1, nq
         ri = rnk(i)
@@ -1232,26 +1262,36 @@ end subroutine
 
 
 subroutine quantile_dispatch (x, pmf, rnk, q, interp, sort, status)
+    !* Compute quantiles from discrete support or bin edges.
+    !  Equal-length X and PMF arrays select discrete quantiles; INTERP is
+    !  ignored. For 0 <= r < 1, return the smallest positive-mass support
+    !  value with F(x) > r, so an exact interior CDF jump selects the next
+    !  positive-mass value. Ranks 0 and 1 select the minimum and maximum
+    !  positive-mass support values, respectively.
+    !  With one more element in X than PMF, use bin-edge interpolation.
+
     real (PREC), intent(in), dimension(:), contiguous :: x
-        !*  Array of bin edges (or bin midpoints) in increasing order
+        !* Discrete support values, or bin edges in increasing order.
     real (PREC), intent(in), dimension(:), contiguous :: pmf
-        !*  PMF associated with bins defined by X
+        !* Weights associated with X. Discrete distributions require nonempty,
+        !  finite support and finite, nonnegative weights with a positive,
+        !  finite total. Weights are normalized internally.
     real (PREC), intent(in), dimension(:), contiguous :: rnk
         !*  Percentiles to compute which must be between 0.0 and 1.0 inclusive.
     real (PREC), intent(out), dimension(:), contiguous :: q
         !*  (Interpolated) quantiles corresponding to RNK
     character (*), intent(in), optional :: interp
-        !*  Interpolation method to use when desired percentile is between
+        !*  Bin interpolation method; ignored for discrete support.
+        !   Interpolation to use when desired percentile is between
         !   two data points with indices i and i+1. Valid values are
-        !      1.  'linear': linearly interpolate between values at i, i+1
-        !      2.  'lower': x(i)
-        !      3.  'higher': x(i+1)
-        !      4.  'nearest': value at index which is nearest
-        !      5.  'midpoint': (x(i)+x(i+1))/2
+        !      1.  "linear": linearly interpolate between values at i, i+1
+        !      2.  "lower": x(i)
+        !      3.  "higher": x(i+1)
+        !      4.  "nearest": value at index which is nearest
+        !      5.  "midpoint": (x(i)+x(i+1))/2
     logical, intent(in), optional :: sort
-        !*  If true (default), assume that input array X needs to sorted
-        !   first before computing quantiles (only applicable when
-        !   array X represents the state space of a discrete RV)
+        !* Sort discrete support internally by default. If false, discrete
+        !  support must be nondecreasing. Ignored for bin edges.
     type (status_t), intent(out), optional :: status
         !*  Optional status code
 
@@ -1266,25 +1306,29 @@ end subroutine
 
 
 subroutine quantile_dispatch_scalar (x, pmf, rnk, q, interp, sort, status)
+    !* Scalar version of QUANTILE_DISPATCH with the same input requirements,
+    !  discrete CDF jump convention, and bin-edge interpolation methods.
+
     real (PREC), intent(in), dimension(:), contiguous :: x
-        !*  Array of bin edges (or bin midpoints) in increasing order
+        !* Discrete support values, or bin edges in increasing order.
     real (PREC), intent(in), dimension(:), contiguous :: pmf
-        !*  PMF associated with bins defined by X
+        !* Weights associated with the support values or bins defined by X.
     real (PREC), intent(in) :: rnk
         !*  Percentile to compute which must be between 0.0 and 1.0 inclusive.
     real (PREC), intent(out) :: q
         !*  (Interpolated) quantile corresponding to RNK
     character (*), intent(in), optional :: interp
-        !*  Interpolation method to use when desired percentile is between
+        !*  Bin interpolation method; ignored for discrete support.
+        !   Interpolation to use when desired percentile is between
         !   two data points with indices i and i+1. Valid values are
-        !      1.  'linear': linearly interpolate between values at i, i+1
-        !      2.  'lower': x(i)
-        !      3.  'higher': x(i+1)
-        !      4.  'nearest': value at index which is nearest
-        !      5.  'midpoint': (x(i)+x(i+1))/2
+        !      1.  "linear": linearly interpolate between values at i, i+1
+        !      2.  "lower": x(i)
+        !      3.  "higher": x(i+1)
+        !      4.  "nearest": value at index which is nearest
+        !      5.  "midpoint": (x(i)+x(i+1))/2
     logical, intent(in), optional :: sort
-        !*  If true (default), assume that input array X needs to sorted
-        !   first before computing quantiles
+        !* Sort discrete support internally by default. If false, discrete
+        !  support must be nondecreasing. Ignored for bin edges.
     type (status_t), intent(out), optional :: status
         !*  Optional status code
 
