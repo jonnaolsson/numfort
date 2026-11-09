@@ -30,19 +30,25 @@ C      |MA  02110-1301  USA                                             |
 C      -----------------------------------------------------------------|
 
       SUBROUTINE NEWUOA_H(FCN,N,MV,NPT,X,RHOBEG,RHOEND,IPRINT,MAXFUN,
-     &  NF,W)
+     &  NF,W,INFO,FX)
       IMPLICIT NONE
       PROCEDURE (fobj_if) :: FCN
       INTEGER, INTENT(IN) :: N
       INTEGER, INTENT(IN) :: MV
       INTEGER, INTENT(IN) :: NPT
-      REAL (PREC), INTENT(OUT), DIMENSION(:), CONTIGUOUS :: X
+      REAL (PREC), INTENT(INOUT), DIMENSION(:), CONTIGUOUS :: X
       REAL (PREC), INTENT(IN) :: RHOBEG, RHOEND
       INTEGER, INTENT(IN) :: IPRINT
       INTEGER, INTENT(IN) :: MAXFUN
       INTEGER, INTENT(OUT) :: NF
 c       Contains the number of function evaluations on exit
       REAL (PREC), INTENT(OUT), DIMENSION(:), TARGET, CONTIGUOUS :: W
+      INTEGER, INTENT(OUT), OPTIONAL :: INFO
+C       NEWUOA_CONVERGED, NEWUOA_MAXFUN, NEWUOA_NUMERICAL_ERROR, or
+C       NEWUOA_INVALID_INPUT. NF counts all calls, including failed ones.
+      REAL (PREC), INTENT(OUT), OPTIONAL :: FX(:)
+C       Residual at the returned X, without an additional evaluation.
+C       Undefined for invalid input; may be nonfinite if the first call fails.
 C
 C     N must be set to the number of variables and must be at least two.
 C     mv must be set to the lengh of the vector function v_err(x):  R^n \to R^{mv}. 
@@ -80,7 +86,7 @@ C     SUBROUTINE dfovec(n, mv, x, v_err) must be provided by the user. It must p
 C     the values of the vector function v_err(x) : R^n to R^{mv} at the variables X(1),X(2),...,X(N).
 C
 
-      INTEGER :: NP, NPTM, NDIM
+      INTEGER :: NP, NPTM, NDIM, IERR
       INTEGER :: IXB, IXO, IXN, IXP, IGQ, IHQ, IPQ
       INTEGER :: IBMAT, IZMAT, ID, IVL, IW
       INTEGER :: IGQV, IHQV, IPQV, IWV, IVERR, IVBEG, IVTEMP, IDIFFV
@@ -113,6 +119,9 @@ C
 
       REAL (PREC), DIMENSION(:), POINTER, CONTIGUOUS :: W_REST
 
+      NF=0
+      IERR=NEWUOA_INVALID_INPUT
+      IF (PRESENT(INFO)) INFO=IERR
       NP=N+1
       NPTM=NPT-NP
       IF (NPT .LT. N+2 .OR. NPT .GT. 2*N+1) THEN
@@ -183,7 +192,9 @@ C
       CALL NEWUOB_H (FCN,N,MV,NPT,X,RHOBEG,RHOEND,IPRINT,MAXFUN,
      &  XBASE,XOPT,XNEW,XPT,GQ,HQ,PQ,BMAT,ZMAT,
      &  NDIM,D,VLAG,GQV,HQV,PQV,WV,V_ERR,V_BEG,V_TEMP,DIFFV,
-     &  V_OPT,V_VQUAD,V_BASE,HD1,GQV_OPT,W_REST,NF)
+     &  V_OPT,V_VQUAD,V_BASE,HD1,GQV_OPT,W_REST,NF,IERR)
+      IF (PRESENT(INFO)) INFO=IERR
+      IF (PRESENT(FX)) FX=V_ERR
    20 RETURN
       END
 
