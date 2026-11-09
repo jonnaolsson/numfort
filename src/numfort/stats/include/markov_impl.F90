@@ -2,15 +2,18 @@
 
 
 pure function is_trans_matrix (mat, tol, transposed) result(res)
-    !*  IS_TRANS_MATRIX checks whether argument is a valid transition matrix
+    !* Check transition probabilities and row or column sums.
+    !  Matrix shape is not validated.
     real (PREC), intent(in), dimension(:,:) :: mat
         !*  Transition matrix to check
     real (PREC), intent(in), optional :: tol
-        !*  Tolerance on row sums (default: 1e-12)
+        !* Absolute tolerance on row or column sums (default: 1e-12).
+        !  The absolute deviation from one must be strictly less than TOL.
     logical, intent(in), optional :: transposed
         !*  If true, assume that transition matrix is transposed, ie. columns
         !   sum to 1.0 instead of rows.
     logical :: res
+        !* True if probabilities are nonnegative and sums satisfy the tolerance.
 
     real (PREC) :: ltol
     integer :: dim
