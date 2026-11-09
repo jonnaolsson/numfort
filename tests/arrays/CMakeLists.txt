@@ -1,4 +1,5 @@
 numfort_add_test(arrays_copy copy.f90)
+numfort_add_test(arrays_create create.f90)
 numfort_add_test(arrays_delete delete.f90)
 numfort_add_test(arrays_grid grid.F90)
 numfort_add_test(arrays_indexing indexing.F90)
