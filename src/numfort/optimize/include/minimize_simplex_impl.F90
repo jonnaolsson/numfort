@@ -76,7 +76,13 @@ pure subroutine map_ifault (ifault, status, msg)
         if (present(msg)) msg = "Simplex: successful termination"
     else if (ifault == 1) then
         status = NF_STATUS_MAX_EVAL
-        if (present(msg)) msg = "Simplex: max. number of function evaluations exceeded"
+        if (present(msg)) msg = "Simplex: function evaluation limit reached"
+    else if (ifault == 5) then
+        status = NF_STATUS_OK + NF_STATUS_APPROX
+        if (present(msg)) msg = "Simplex: converged; quadratic fit unavailable"
+    else if (ifault == 6) then
+        status = NF_STATUS_DOMAIN_ERROR
+        if (present(msg)) msg = "Simplex: nonfinite search point or function value"
     else if (ifault == 3 .or. ifault == 4) then
         status = NF_STATUS_INVALID_ARG
         if (present(msg)) msg = "Simplex: invalid input argument(s)"
@@ -100,6 +106,10 @@ subroutine minimize_simplex (fcn, x, tol, maxfun, rstep, &
         !   The actual step size is computed as (xstep + rstep * x).
     integer (NF_ENUM_KIND), intent(in), optional :: iprint
     logical, intent(in), optional :: quad
+        !* Fit a quadratic surface after convergence (default: true).
+        !  If the fit is unavailable, return the best finite evaluated point
+        !  with NF_STATUS_OK + NF_STATUS_APPROX. An exhausted callback budget
+        !  returns NF_STATUS_MAX_EVAL, including during the fit.
     type (workspace), intent(inout), optional :: work
     type (optim_result), intent(inout), optional :: res
 
@@ -127,6 +137,10 @@ subroutine minimize_simplex_args (fcn, x, args, tol, maxfun, &
         !   The actual step size is computed as (xstep + rstep * x).
     integer (NF_ENUM_KIND), intent(in), optional :: iprint
     logical, intent(in), optional :: quad
+        !* Fit a quadratic surface after convergence (default: true).
+        !  If the fit is unavailable, return the best finite evaluated point
+        !  with NF_STATUS_OK + NF_STATUS_APPROX. An exhausted callback budget
+        !  returns NF_STATUS_MAX_EVAL, including during the fit.
     type (workspace), intent(inout), optional :: work
     type (optim_result), intent(inout), optional :: res
 
