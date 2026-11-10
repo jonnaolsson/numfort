@@ -58,6 +58,7 @@ C       Explicit termination reason, independent of the evaluation count.
       REAL (PREC), DIMENSION(:,:), POINTER, CONTIGUOUS :: BIGDEN_PROD
 
       REAL (PREC) :: FBEG, FOPT, F
+      INTEGER :: TR_INFO
 
       debug = .false.
       INFO=NEWUOA_NUMERICAL_ERROR
@@ -195,7 +196,14 @@ C
 
       CALL TRSAPP_H(N,MV,NPT,XOPT,XPT,GQ,HQ,PQ,DELTA,D,W,
      &  CRVMIN,GQV,HQV,PQV,XBASE,vquad1,
-     &  GQV_opt,v_opt,v_base,XOPTSQ,model_update,opt_update)
+     &  GQV_opt,v_opt,v_base,XOPTSQ,model_update,opt_update,TR_INFO)
+      IF (TR_INFO .NE. NEWUOA_CONVERGED) THEN
+          INFO=TR_INFO
+C         The rejected step has no evaluation. Restore the best saved pair.
+          F=FOPT
+          IF (IPRINT .GT. 0) PRINT 370
+          GOTO 530
+      END IF
       DSQ=ZERO
       DO 110 I=1,N
   110 DSQ=DSQ+D(I)**2

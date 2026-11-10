@@ -4,7 +4,7 @@ C   This TRSAPP_H are modifications and based on the subroutine TRSAPP in the so
 C
       SUBROUTINE TRSAPP_H (N,MV,NPT,XOPT,XPT,GQ,HQ,PQ,DELTA,STEP,
      1  W,CRVMIN,GQV,HQV,PQV,XBASE,vquad,
-     1  GQV_opt,v_opt,v_base,XOPTSQ,model_update,opt_update)
+     1  GQV_opt,v_opt,v_base,XOPTSQ,model_update,opt_update,INFO)
       IMPLICIT REAL (PREC) (A-H,O-Z)
       INTEGER, INTENT(IN) :: N
       INTEGER, INTENT(IN) :: MV
@@ -28,6 +28,8 @@ C
       REAL (PREC), INTENT(INOUT), DIMENSION(:), CONTIGUOUS :: V_BASE
       REAL (PREC), INTENT(IN) :: XOPTSQ
       LOGICAL, INTENT(INOUT) :: model_update, opt_update
+      INTEGER, INTENT(OUT) :: INFO
+C       Report a failed trust-region step without terminating the caller.
 
       logical zero_res, debug
       REAL (PREC) v_gtemp(MV), gbeg(N), gtemp(N)
@@ -376,15 +378,11 @@ c     &        + XOPT(i)*HD(i)
       vquad= zero
       do 163 i=1,n
   163 vquad = vquad + step(i)*(gbeg(i)+HALF*HD(i))
-      if (vquad.gt.zero) then
-         print *," Warning: the TR subproblem was not well solved!"
-         t = zero
-         do i=1,n
-           t = t + step(i)**2
-         enddo
-         print *, " vquad=", vquad, " Stepsize=",SQRT(t)
-         if (SQRT(t).ge.half*DELTA) stop
-      endif
+      INFO=NEWUOA_CONVERGED
+      IF (VQUAD .GT. ZERO) THEN
+          T=SUM(STEP(1:N)**2)
+          IF (SQRT(T) .GE. HALF*DELTA) INFO=NEWUOA_NUMERICAL_ERROR
+      END IF
       RETURN
 C
 C     The following instructions act as a subroutine for setting the vector

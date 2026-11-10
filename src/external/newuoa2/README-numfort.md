@@ -13,3 +13,7 @@ The original Fortran 77 source code can be downloaded from
   that residual; if input is invalid, `FX` is undefined.
 - The best point and residual are retained during partial initialization and
   restored together on budget exhaustion or numerical failure.
+- A trust-region step with a positive predicted change and length at least
+  half the radius returns `NEWUOA_NUMERICAL_ERROR`. It does not terminate the
+  caller or evaluate the rejected step. `minimize_dfls` reports
+  `NF_STATUS_INVALID_STATE` with `success=false`.
