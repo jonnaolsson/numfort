@@ -25,24 +25,34 @@
 - Unit tests are implemented in `tests/` and are run by CTest.
 - Call each test subroutine directly from the main `program` body. Do not use
   intermediate wrapper subroutines such as `test_all()`.
-- When writing new tests, split distinct test families into separate subroutines.
-  For example, if testing a subroutine `unique()`, combine all tests for
-  `unique()` into a single subroutine `test_unique()`, but do not combine tests
-  for `unique()` and `sort()`. If a test family contains more than 10 test
-  cases, split them into local sub-tests implemented as separate subroutines.
-- Add line comments clearly documenting each individual test case for each
-  fixture.
-- Add a header comment for each test subroutine describing the purpose of the test
-  family using brief bullet points.
-- When the expected return value is computed from some mathematical expression,
-  add a line comment explaining that expression.
+- When writing new tests, split distinct test families into separate
+  subroutines. For example, if testing `unique()`, combine tests for `unique()`
+  into a single subroutine `test_unique()`, but do not combine tests for
+  `unique()` and `sort()`.
+- If a test family contains more than 10 test cases, split it into separate
+  subroutines called directly from the main `program` body.
 - Do not write tests that replicate the implementation verbatim.
 - Create tests for known corner cases or closed-form solutions where the
   expected return value can be computed independently of the implementation.
-- Where applicable, another strategy to verify correctness for known deterministic algorithms is to use results from NumPy or SciPy, hard-coded into the test as a reference.
+- For deterministic algorithms with known reference implementations, verify
+  correctness against hard-coded results from NumPy or SciPy.
 - Use `error stop "<message>"` to terminate a test as soon as a failure is
   detected. Use static messages for error stops so that no boilerplate dynamic
   string creation is needed.
+- Add line comments documenting each test case and data fixture.
+- Add a header comment for each test subroutine with a one-sentence summary of
+  its scope, followed by brief bullet points for each test case covered. Use
+  concise descriptions and avoid repetitive lead-ins (such as "Test with...").
+  Do not add separate bullets for iterations or parameter sweeps within a test
+  case:
+  ```fortran
+  subroutine test_unique()
+      !* Test unique() deduplication and array bounds.
+      !   - Integer array with duplicates.
+      !   - Floating-point array with duplicates.
+      !   - Array sizes of 0, 1, 5, and 10.
+  end subroutine
+  ```
 
 ## Fortran style
 
@@ -50,6 +60,8 @@
 - For legacy external code in `src/external`, follow the style of the original
   code, but do not introduce obsolete constructs when adding new code to those
   files.
+- Add brief line comments explaining non-trivial mathematical expressions,
+  formulas, or derivations.
 
 ## Git
 
